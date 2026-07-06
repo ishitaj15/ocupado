@@ -2,6 +2,7 @@ import { io } from '../server.js'
 import pool from '../db/index.js'
 import Machine from '../models/Machine.js'
 import { v4 as uuidv4 } from 'uuid'
+import ocupadoQueue from '../queue/index.js'
 
 // Admin: Create a new machine
 export const createMachine = async (req, res) => {
@@ -68,7 +69,21 @@ export const updateMachineStatus = async (req, res) => {
       return res.status(404).json({ error: 'Machine not found' })
     }
 
-    // Emit real-time update to ALL connected clients ⭐
+    // When machine goes FREE → notify next in waitlist
+    if (status === 'FREE') {
+      await ocupadoQueue.add('notify-next', { machineId: id })
+    }
+
+    // When machine goes ENGAGED → start 2hr auto-free timer
+    if (status === 'ENGAGED') {
+      await ocupadoQueue.add(
+        'auto-free',
+        { machineId: id },
+        { delay: 2 * 60 * 60 * 1000 }  // 2 hours in ms
+      )
+    }
+
+    // Emit real-time update to ALL connected clients
     io.emit('machine-status-update', {
       machineId: result.rows[0].id,
       name: result.rows[0].name,

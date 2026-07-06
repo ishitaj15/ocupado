@@ -1,3 +1,4 @@
+import { io } from '../server.js'
 import pool from '../db/index.js'
 import Machine from '../models/Machine.js'
 import { v4 as uuidv4 } from 'uuid'
@@ -66,6 +67,13 @@ export const updateMachineStatus = async (req, res) => {
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Machine not found' })
     }
+
+    // Emit real-time update to ALL connected clients ⭐
+    io.emit('machine-status-update', {
+      machineId: result.rows[0].id,
+      name: result.rows[0].name,
+      status: result.rows[0].status
+    })
 
     const machine = new Machine(
       result.rows[0].id,

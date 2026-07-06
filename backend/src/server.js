@@ -29,6 +29,11 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() })
 })
 
+import machineRoutes from './routes/machineRoutes.js'
+
+// Routes
+app.use('/api/machines', machineRoutes)
+
 // Socket.io connection
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id)

@@ -7,6 +7,7 @@ import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
 import './db/index.js'
+import waitlistRoutes from './routes/waitlistRoutes.js'
 
 dotenv.config()
 
@@ -33,6 +34,7 @@ app.get('/health', (req, res) => {
 })
 
 import machineRoutes from './routes/machineRoutes.js'
+app.use('/api/machines', waitlistRoutes)
 
 // Routes
 app.use('/api/machines', machineRoutes)

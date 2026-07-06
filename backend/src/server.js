@@ -1,3 +1,5 @@
+import ocupadoQueue from './queue/index.js'
+import './queue/worker.js'
 import './db/redis.js'
 import express from 'express'
 import cors from 'cors'

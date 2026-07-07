@@ -1,15 +1,18 @@
-import ocupadoQueue from './queue/index.js'
-import './queue/worker.js'
-import './db/redis.js'
+import dotenv from 'dotenv'
+dotenv.config()
+
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
-import './db/index.js'
-import waitlistRoutes from './routes/waitlistRoutes.js'
 
-dotenv.config()
+// DB connections
+import './db/index.js'
+import './db/redis.js'
+
+// Queue
+import './queue/index.js'
+import './queue/worker.js'
 
 const app = express()
 const httpServer = createServer(app)
@@ -28,16 +31,18 @@ app.use(cors({
 }))
 app.use(express.json())
 
-// Health check route — used by cron-job.org to keep Render awake
+// Routes
+import machineRoutes from './routes/machineRoutes.js'
+import waitlistRoutes from './routes/waitlistRoutes.js'
+import authRoutes from './routes/authRoutes.js'
+
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() })
 })
 
-import machineRoutes from './routes/machineRoutes.js'
-app.use('/api/machines', waitlistRoutes)
-
-// Routes
+app.use('/api/auth', authRoutes)
 app.use('/api/machines', machineRoutes)
+app.use('/api/machines', waitlistRoutes)
 
 // Socket.io connection
 io.on('connection', (socket) => {

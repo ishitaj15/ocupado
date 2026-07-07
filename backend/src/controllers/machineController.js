@@ -3,6 +3,7 @@ import pool from '../db/index.js'
 import Machine from '../models/Machine.js'
 import { v4 as uuidv4 } from 'uuid'
 import ocupadoQueue from '../queue/index.js'
+import QRCode from 'qrcode'
 
 // Admin: Create a new machine
 export const createMachine = async (req, res) => {
@@ -13,9 +14,15 @@ export const createMachine = async (req, res) => {
       return res.status(400).json({ error: 'Machine name is required' })
     }
 
+    const machineId = uuidv4()
+
+    // Generate QR code URL
+    const machineUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/machine/${machineId}`
+    const qrCode = await QRCode.toDataURL(machineUrl)
+
     const result = await pool.query(
-      'INSERT INTO machines (id, name, status) VALUES ($1, $2, $3) RETURNING *',
-      [uuidv4(), name, 'FREE']
+      'INSERT INTO machines (id, name, status, qr_url) VALUES ($1, $2, $3, $4) RETURNING *',
+      [machineId, name, 'FREE', qrCode]
     )
 
     const machine = new Machine(
@@ -79,7 +86,7 @@ export const updateMachineStatus = async (req, res) => {
       await ocupadoQueue.add(
         'auto-free',
         { machineId: id },
-        { delay: 2 * 60 * 60 * 1000 }  // 2 hours in ms
+        { delay: 2 * 60 * 60 * 1000 }
       )
     }
 

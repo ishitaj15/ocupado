@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
-import laundryImg from '../assets/laundry.png'
+import { Mail, Lock } from 'lucide-react'
 import { API } from '../config'
-
+import laundryImg from '../assets/laundry.png'
 
 export default function Login() {
   const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [isLogin, setIsLogin] = useState(true)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,10 +21,10 @@ export default function Login() {
     setLoading(true)
     try {
       if (isLogin) {
-        const res = await axios.post(`${API}/api/auth/login`, { phone })
+        const res = await axios.post(`${API}/api/auth/login`, { email, password })
         login(res.data.student, res.data.token)
       } else {
-        const res = await axios.post(`${API}/api/auth/register`, { name, phone })
+        const res = await axios.post(`${API}/api/auth/register`, { name, email, password })
         login(res.data.student, res.data.token)
       }
       navigate('/')
@@ -43,9 +44,7 @@ export default function Login() {
         backgroundPosition: 'center',
       }}
     >
-      {/* Login card */}
       <div className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl w-full max-w-md p-8 border border-white/40">
-        {/* Brand header inside card */}
         <div className="flex flex-col items-center mb-6">
           <div className="flex items-center gap-2">
             <span className="text-3xl">🧺</span>
@@ -54,7 +53,6 @@ export default function Login() {
           <p className="text-slate-500 text-sm mt-1">Smart laundry for busy lives</p>
         </div>
 
-        {/* Tabs */}
         <div className="flex border-b border-slate-200 mb-6">
           <button
             onClick={() => setIsLogin(true)}
@@ -83,17 +81,28 @@ export default function Login() {
           />
         )}
 
-        {/* Phone input */}
-        <div className="mb-4">
-          <div className="w-full border border-slate-300 rounded-xl px-4 py-3 focus-within:ring-2 focus-within:ring-navy">
-            <label className="block text-xs font-semibold text-slate-700">Phone Number</label>
-            <input
-              className="w-full focus:outline-none text-slate-800 placeholder-slate-400"
-              placeholder="Enter your phone number"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
-          </div>
+        {/* Email */}
+        <div className="relative mb-4">
+          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+          <input
+            type="email"
+            className="w-full border border-slate-300 rounded-xl p-3 pl-12 focus:outline-none focus:ring-2 focus:ring-navy"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+
+        {/* Password */}
+        <div className="relative mb-4">
+          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+          <input
+            type="password"
+            className="w-full border border-slate-300 rounded-xl p-3 pl-12 focus:outline-none focus:ring-2 focus:ring-navy"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </div>
 
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}

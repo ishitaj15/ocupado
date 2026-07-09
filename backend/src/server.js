@@ -1,3 +1,4 @@
+import adminRoutes from './routes/adminRoutes.js'
 import dotenv from 'dotenv'
 dotenv.config()
 
@@ -35,6 +36,7 @@ app.use(express.json())
 import machineRoutes from './routes/machineRoutes.js'
 import waitlistRoutes from './routes/waitlistRoutes.js'
 import authRoutes from './routes/authRoutes.js'
+app.use('/api/admin', adminRoutes)
 
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date() })

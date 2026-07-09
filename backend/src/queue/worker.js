@@ -6,7 +6,6 @@ import ocupadoQueue from './index.js'
 
 const worker = new Worker('ocupado', async (job) => {
 
-  // Import io inside handler to avoid circular dependency
   const { io } = await import('../server.js')
   const socketNotifier = new SocketNotifier(io)
 
@@ -17,7 +16,6 @@ const worker = new Worker('ocupado', async (job) => {
     const { machineId } = job.data
     console.log(`📋 Processing notify-next for machine ${machineId}`)
 
-    // Get next WAITING student for this machine
     const result = await pool.query(
       `SELECT w.*, s.phone, s.name as student_name 
        FROM waitlist w 
@@ -30,49 +28,46 @@ const worker = new Worker('ocupado', async (job) => {
 
     if (result.rows.length === 0) {
       console.log(`No students waiting for machine ${machineId}`)
-      // No one waiting — machine goes FREE
       await pool.query(
-        'UPDATE machines SET status = $1 WHERE id = $2',
-        ['FREE', machineId]
+        `UPDATE machines 
+         SET status = 'FREE',
+             current_user_id = NULL,
+             wash_duration = NULL,
+             started_at = NULL,
+             ends_at = NULL
+         WHERE id = $1`,
+        [machineId]
       )
-      io.emit('machine-status-update', { machineId, status: 'FREE' })
+      io.emit('machine-status-update', { machineId, status: 'FREE', currentUserId: null, endsAt: null })
       return
     }
 
     const waitlistEntry = result.rows[0]
 
-    // Mark waitlist entry as NOTIFIED
     await pool.query(
       'UPDATE waitlist SET status = $1 WHERE id = $2',
       ['NOTIFIED', waitlistEntry.id]
     )
 
-    // Mark machine as RESERVED
     await pool.query(
       'UPDATE machines SET status = $1 WHERE id = $2',
       ['RESERVED', machineId]
     )
 
-    // Notify student via Socket.io
     socketNotifier.send(
       `🟢 Machine is free! Confirm within 10 minutes or you'll lose your spot.`,
       waitlistEntry.student_id
     )
 
-    // Update dashboard for everyone
     io.emit('machine-status-update', {
       machineId,
       status: 'RESERVED'
     })
 
-    // Create 10 min timeout job
     await ocupadoQueue.add(
       'timeout-confirmation',
-      { 
-        machineId, 
-        waitlistEntryId: waitlistEntry.id 
-      },
-      { delay: 10 * 60 * 1000 }  // 10 minutes in ms
+      { machineId, waitlistEntryId: waitlistEntry.id },
+      { delay: 10 * 60 * 1000 }
     )
 
     console.log(`✅ Notified student ${waitlistEntry.student_name}`)
@@ -85,38 +80,32 @@ const worker = new Worker('ocupado', async (job) => {
     const { machineId, waitlistEntryId } = job.data
     console.log(`⏰ Processing timeout for waitlist entry ${waitlistEntryId}`)
 
-    // Check if student still hasn't confirmed
     const result = await pool.query(
       'SELECT * FROM waitlist WHERE id = $1 AND status = $2',
       [waitlistEntryId, 'NOTIFIED']
     )
 
     if (result.rows.length === 0) {
-      // Student already confirmed or manually handled
       console.log('Student already confirmed, skipping timeout')
       return
     }
 
-    // Mark as EXPIRED — they lost their spot
     await pool.query(
       'UPDATE waitlist SET status = $1 WHERE id = $2',
       ['EXPIRED', waitlistEntryId]
     )
 
     console.log(`⏰ Student timed out — moving to next in queue`)
-
-    // Notify next student in line
     await ocupadoQueue.add('notify-next', { machineId })
   }
 
   // ─────────────────────────────────────────
-  // Job 3 — auto free machine after 2 hours
+  // Job 3 — auto free after exact wash duration
   // ─────────────────────────────────────────
   if (job.name === 'auto-free') {
     const { machineId } = job.data
     console.log(`🔄 Auto-freeing machine ${machineId}`)
 
-    // Only free if still ENGAGED (student may have freed manually)
     const result = await pool.query(
       'SELECT * FROM machines WHERE id = $1 AND status = $2',
       [machineId, 'ENGAGED']
@@ -127,29 +116,46 @@ const worker = new Worker('ocupado', async (job) => {
       return
     }
 
-    // Mark machine FREE
+    // Reset all wash columns
     await pool.query(
-      'UPDATE machines SET status = $1 WHERE id = $2',
-      ['FREE', machineId]
+      `UPDATE machines 
+       SET status = 'FREE',
+           current_user_id = NULL,
+           wash_duration = NULL,
+           started_at = NULL,
+           ends_at = NULL
+       WHERE id = $1`,
+      [machineId]
     )
 
-    // Update dashboard
     io.emit('machine-status-update', {
       machineId,
-      status: 'FREE'
+      status: 'FREE',
+      currentUserId: null,
+      endsAt: null
     })
 
-    // Trigger waitlist
     await ocupadoQueue.add('notify-next', { machineId })
+    console.log(`✅ Machine ${machineId} auto-freed after wash cycle`)
+  }
 
-    console.log(`✅ Machine ${machineId} auto-freed after 2 hours`)
+  // ─────────────────────────────────────────
+  // Job 4 — 5 minute warning before wash ends
+  // ─────────────────────────────────────────
+  if (job.name === '5-min-warning') {
+    const { machineId, studentId } = job.data
+    console.log(`⏰ 5 min warning for machine ${machineId}`)
+
+    socketNotifier.send(
+      '⏰ Your laundry finishes in 5 minutes! Get ready to collect your clothes.',
+      studentId
+    )
+
+    console.log(`✅ 5 min warning sent to student ${studentId}`)
   }
 
 }, { connection })
 
-// ─────────────────────────────────────────
-// Worker event listeners
-// ─────────────────────────────────────────
 worker.on('completed', (job) => {
   console.log(`✅ Job completed: ${job.name}`)
 })

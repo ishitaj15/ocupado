@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import { useNavigate } from 'react-router-dom'
 
 const API = 'http://localhost:3000'
 
@@ -11,9 +12,11 @@ const statusConfig = {
 
 export default function MachineCard({ machine, onNotify }) {
   const { token, student } = useAuth()
+  const navigate = useNavigate()
   const config = statusConfig[machine.status]
 
-  const handleNotify = async () => {
+  const handleNotify = async (e) => {
+    e.stopPropagation()
     try {
       await axios.post(
         `${API}/api/machines/${machine.id}/waitlist`,
@@ -28,13 +31,18 @@ export default function MachineCard({ machine, onNotify }) {
   }
 
   return (
-    <div className={`border-2 rounded-xl p-5 ${config.color} transition-all duration-300`}>
+    <div
+      className={`border-2 rounded-xl p-5 ${config.color} transition-all duration-300 cursor-pointer hover:shadow-lg`}
+      onClick={() => navigate(`/machine/${machine.id}`)}
+    >
       <div className="flex justify-between items-center mb-3">
         <h3 className="text-lg font-bold text-gray-800">{machine.name}</h3>
         <span className={`${config.badge} text-white text-xs px-3 py-1 rounded-full`}>
           {config.label}
         </span>
       </div>
+
+      <p className="text-gray-400 text-xs mb-2">Tap to open machine</p>
 
       {machine.status !== 'FREE' && (
         <button
@@ -47,7 +55,7 @@ export default function MachineCard({ machine, onNotify }) {
 
       {machine.status === 'FREE' && (
         <p className="text-green-600 text-sm font-medium mt-2">
-          ✅ Available — Go ahead!
+          ✅ Tap to start washing
         </p>
       )}
     </div>

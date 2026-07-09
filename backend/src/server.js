@@ -19,17 +19,27 @@ const app = express()
 const httpServer = createServer(app)
 
 // Socket.io setup
+// Allowed frontend origins (both common Vite dev ports)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:5174',
+  process.env.FRONTEND_URL,
+].filter(Boolean)
+
+// Socket.io setup
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 })
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173'
+  origin: allowedOrigins
 }))
+
+
 app.use(express.json())
 
 // Routes

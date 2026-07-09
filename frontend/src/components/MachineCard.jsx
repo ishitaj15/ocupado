@@ -1,8 +1,7 @@
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-
-const API = 'http://localhost:3000'
+import { API } from '../config'
 
 const statusConfig = {
   FREE: { color: 'bg-green-100 border-green-400', badge: 'bg-green-500', label: '🟢 Free' },

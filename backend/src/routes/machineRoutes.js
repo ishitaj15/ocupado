@@ -9,6 +9,7 @@ import {
 } from '../controllers/machineController.js'
 import { verifyAdminToken } from '../middleware/auth.js'
 import { updateMachineStatusSync } from '../controllers/machineSyncController.js'
+import { joinWaitlist, confirmMachine } from '../controllers/waitlistController.js'
 
 const router = express.Router()
 
@@ -23,8 +24,8 @@ router.post('/:id/start-wash', startWash)
 router.post('/:id/end-wash', endWash)
 
 // Waitlist
-router.post('/:id/waitlist', (await import('../controllers/waitlistController.js')).joinWaitlist)
-router.post('/:id/confirm', (await import('../controllers/waitlistController.js')).confirmMachine)
+router.post('/:id/waitlist', joinWaitlist)
+router.post('/:id/confirm', confirmMachine)
 
 // Load test only
 router.patch('/:id/status/sync', updateMachineStatusSync)

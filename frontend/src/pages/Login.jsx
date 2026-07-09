@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
 import laundryImg from '../assets/laundry.png'
+import { API } from '../config'
 
-const API = 'http://localhost:3000'
 
 export default function Login() {
   const [name, setName] = useState('')

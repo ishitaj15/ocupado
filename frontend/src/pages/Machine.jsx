@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
-
-const API = 'http://localhost:3000'
+import { API } from '../config'
 
 export default function Machine() {
   const { id } = useParams()

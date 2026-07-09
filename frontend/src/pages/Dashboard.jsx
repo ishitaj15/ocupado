@@ -4,8 +4,9 @@ import { io } from 'socket.io-client'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import MachineCard from '../components/MachineCard'
+import { API } from '../config'
 
-const API = 'http://localhost:3000'
+
 let socket
 
 export default function Dashboard() {

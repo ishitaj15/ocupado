@@ -10,8 +10,13 @@ CREATE TABLE IF NOT EXISTS students (
 CREATE TABLE IF NOT EXISTS machines (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(50) NOT NULL,
-  status VARCHAR(20) DEFAULT 'FREE' CHECK (status IN ('FREE', 'ENGAGED', 'RESERVED')),
+  status VARCHAR(20) DEFAULT 'FREE' CHECK (status IN ('FREE', 'ENGAGED', 'RESERVED', 'MAINTENANCE')),
   qr_url TEXT,
+  current_user_id UUID REFERENCES students(id),
+  wash_duration INTEGER,
+  started_at TIMESTAMP,
+  ends_at TIMESTAMP,
+  is_maintenance BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -23,14 +28,4 @@ CREATE TABLE IF NOT EXISTS waitlist (
   position INTEGER NOT NULL,
   status VARCHAR(20) DEFAULT 'WAITING' CHECK (status IN ('WAITING', 'NOTIFIED', 'CONFIRMED', 'EXPIRED')),
   joined_at TIMESTAMP DEFAULT NOW()
-);
-
--- OTP table (for Twilio OTP auth)
-CREATE TABLE IF NOT EXISTS otps (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone VARCHAR(15) NOT NULL,
-  otp VARCHAR(6) NOT NULL,
-  expires_at TIMESTAMP NOT NULL,
-  used BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT NOW()
 );

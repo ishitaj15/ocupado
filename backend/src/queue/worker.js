@@ -55,7 +55,7 @@ const worker = new Worker('ocupado', async (job) => {
     )
 
     socketNotifier.send(
-      `🟢 Machine is free! Confirm within 10 minutes or you'll lose your spot.`,
+      `🟢 Machine is free! Confirm within 5 minutes or you'll lose your spot.`,
       waitlistEntry.student_id
     )
 
@@ -67,7 +67,7 @@ const worker = new Worker('ocupado', async (job) => {
     await ocupadoQueue.add(
       'timeout-confirmation',
       { machineId, waitlistEntryId: waitlistEntry.id },
-      { delay: 10 * 60 * 1000 }
+      { delay: 5 * 60 * 1000 }
     )
 
     console.log(`✅ Notified student ${waitlistEntry.student_name}`)

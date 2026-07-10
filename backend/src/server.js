@@ -6,6 +6,7 @@ import express from 'express'
 import cors from 'cors'
 import { createServer } from 'http'
 import { Server } from 'socket.io'
+import studentRoutes from './routes/studentRoutes.js'
 
 // DB connections
 import './db/index.js'
@@ -46,6 +47,7 @@ app.use(express.json())
 import machineRoutes from './routes/machineRoutes.js'
 import authRoutes from './routes/authRoutes.js'
 
+
 app.use('/api/admin', adminRoutes)
 
 app.get('/health', (req, res) => {
@@ -54,6 +56,7 @@ app.get('/health', (req, res) => {
 
 app.use('/api/auth', authRoutes)
 app.use('/api/machines', machineRoutes)
+app.use('/api/students', studentRoutes)
 
 // Socket.io connection
 io.on('connection', (socket) => {

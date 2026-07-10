@@ -5,9 +5,10 @@ import {
   updateMachineStatus,
   startWash,
   endWash,
-  toggleMaintenance
+  toggleMaintenance,
+  getMachineQueue
 } from '../controllers/machineController.js'
-import { verifyAdminToken } from '../middleware/auth.js'
+import { verifyToken, verifyAdminToken } from '../middleware/auth.js'
 import { updateMachineStatusSync } from '../controllers/machineSyncController.js'
 import { joinWaitlist, confirmMachine } from '../controllers/waitlistController.js'
 
@@ -19,13 +20,14 @@ router.patch('/:id/maintenance', verifyAdminToken, toggleMaintenance)
 
 // Public
 router.get('/', getMachines)
+router.get('/:id/queue', getMachineQueue)
 router.patch('/:id/status', updateMachineStatus)
-router.post('/:id/start-wash', startWash)
-router.post('/:id/end-wash', endWash)
 
-// Waitlist
-router.post('/:id/waitlist', joinWaitlist)
-router.post('/:id/confirm', confirmMachine)
+// Logged-in users only (identity comes from JWT via verifyToken)
+router.post('/:id/start-wash', verifyToken, startWash)
+router.post('/:id/end-wash', verifyToken, endWash)
+router.post('/:id/waitlist', verifyToken, joinWaitlist)
+router.post('/:id/confirm', verifyToken, confirmMachine)
 
 // Load test only
 router.patch('/:id/status/sync', updateMachineStatusSync)

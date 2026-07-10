@@ -63,7 +63,7 @@ export const updateMachineStatus = async (req, res) => {
     const { id } = req.params
     const { status } = req.body
 
-    if (!['FREE', 'ENGAGED', 'RESERVED'].includes(status)) {
+    if (!['FREE', 'ENGAGED', 'RESERVED', 'MAINTENANCE'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' })
     }
 
@@ -79,15 +79,6 @@ export const updateMachineStatus = async (req, res) => {
     // When machine goes FREE → notify next in waitlist
     if (status === 'FREE') {
       await ocupadoQueue.add('notify-next', { machineId: id })
-    }
-
-    // When machine goes ENGAGED → start 2hr auto-free timer
-    if (status === 'ENGAGED') {
-      await ocupadoQueue.add(
-        'auto-free',
-        { machineId: id },
-        { delay: 2 * 60 * 60 * 1000 }
-      )
     }
 
     // Emit real-time update to ALL connected clients
@@ -115,10 +106,11 @@ export const updateMachineStatus = async (req, res) => {
 export const startWash = async (req, res) => {
   try {
     const { id } = req.params
-    const { studentId, duration } = req.body
+    const studentId = req.user.id
+    const { duration } = req.body
 
-    if (!studentId || !duration) {
-      return res.status(400).json({ error: 'studentId and duration required' })
+    if (!duration) {
+      return res.status(400).json({ error: 'duration required' })
     }
 
     if (![30, 45, 60].includes(Number(duration))) {
@@ -189,7 +181,7 @@ export const startWash = async (req, res) => {
 export const endWash = async (req, res) => {
   try {
     const { id } = req.params
-    const { studentId } = req.body
+    const studentId = req.user.id
 
     const machine = await pool.query(
       'SELECT * FROM machines WHERE id = $1',
@@ -263,6 +255,33 @@ export const toggleMaintenance = async (req, res) => {
     res.status(200).json({ success: true, machine: result.rows[0] })
   } catch (error) {
     console.error('toggleMaintenance error:', error.message)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}
+
+// Get the waitlist queue for a specific machine
+export const getMachineQueue = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const result = await pool.query(
+      `SELECT w.id, w.student_id, w.position, w.status, w.joined_at,
+              s.name AS student_name
+       FROM waitlist w
+       JOIN students s ON w.student_id = s.id
+       WHERE w.machine_id = $1
+         AND w.status IN ('WAITING', 'NOTIFIED')
+       ORDER BY w.position ASC`,
+      [id]
+    )
+
+    res.status(200).json({
+      success: true,
+      count: result.rows.length,
+      queue: result.rows,
+    })
+  } catch (error) {
+    console.error('getMachineQueue error:', error.message)
     res.status(500).json({ error: 'Internal server error' })
   }
 }

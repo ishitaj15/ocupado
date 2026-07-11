@@ -136,6 +136,11 @@ export default function MyLaundry() {
                               <Bell className="w-4 h-4" /> It's your turn! Confirm within 5 minutes.
                             </p>
                           )}
+                          {w.status === 'CONFIRMED' && (
+                            <p className="text-green-600 text-sm font-semibold">
+                              ✅ Reserved for you — go start your wash!
+                            </p>
+                          )}
                         </div>
                         {w.status === 'NOTIFIED' && (
                           <button
@@ -143,6 +148,14 @@ export default function MyLaundry() {
                             className="bg-green-500 text-white rounded-xl px-5 py-2 font-semibold hover:bg-green-600 transition"
                           >
                             Confirm
+                          </button>
+                        )}
+                        {w.status === 'CONFIRMED' && (
+                          <button
+                            onClick={() => navigate(`/machine/${w.machine_id}`)}
+                            className="bg-navy text-white rounded-xl px-5 py-2 font-semibold hover:bg-navy-dark transition"
+                          >
+                            Start Wash
                           </button>
                         )}
                       </div>

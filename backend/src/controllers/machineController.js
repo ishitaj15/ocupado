@@ -121,15 +121,17 @@ export const startWash = async (req, res) => {
     }
 
     // Limit: a student can use at most 2 machines at once
+    // Count machines this student holds (ENGAGED + RESERVED), excluding the one being started
     const activeCount = await pool.query(
-      `SELECT COUNT(*) FROM machines WHERE current_user_id = $1 AND status = 'ENGAGED'`,
-      [studentId]
+      `SELECT COUNT(*) FROM machines 
+       WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED') AND id != $2`,
+      [studentId, id]
     )
     if (parseInt(activeCount.rows[0].count) >= 2) {
       return res.status(400).json({ error: 'You can only use 2 machines at a time' })
     }
 
-    // Check machine is FREE
+    // Check machine exists
     const machine = await pool.query(
       'SELECT * FROM machines WHERE id = $1',
       [id]
@@ -139,7 +141,13 @@ export const startWash = async (req, res) => {
       return res.status(404).json({ error: 'Machine not found' })
     }
 
-    if (machine.rows[0].status !== 'FREE') {
+    const current = machine.rows[0]
+    const isFree = current.status === 'FREE'
+    const isMyReservation =
+      current.status === 'RESERVED' && current.current_user_id === studentId
+
+    // Allow starting only if the machine is FREE, or RESERVED for this student
+    if (!isFree && !isMyReservation) {
       return res.status(400).json({ error: 'Machine is not available' })
     }
 
@@ -156,6 +164,12 @@ export const startWash = async (req, res) => {
        WHERE id = $5 
        RETURNING *`,
       [studentId, duration, startedAt, endsAt, id]
+    )
+
+    // If this was a reserved machine, clear the student's waitlist entry (turn used)
+    await pool.query(
+      `DELETE FROM waitlist WHERE machine_id = $1 AND student_id = $2`,
+      [id, studentId]
     )
 
     await ocupadoQueue.add(

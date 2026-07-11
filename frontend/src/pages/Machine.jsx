@@ -36,7 +36,6 @@ export default function Machine() {
     }
   }
 
-  // Start a wash with the chosen duration
   const startWash = async (duration) => {
     setUpdating(true)
     try {
@@ -50,7 +49,6 @@ export default function Machine() {
     }
   }
 
-  // End the wash (only the current user can)
   const endWash = async () => {
     setUpdating(true)
     try {
@@ -78,8 +76,8 @@ export default function Machine() {
       </div>
     )
 
-  // Is this machine currently being used by ME?
   const isMine = machine.status === 'ENGAGED' && machine.currentUserId === student.id
+  const isMyReservation = machine.status === 'RESERVED' && machine.currentUserId === student.id
 
   const statusStyle = {
     FREE: 'text-green-600',
@@ -103,10 +101,17 @@ export default function Machine() {
           {machine.status}
         </p>
 
-        {/* FREE → pick a duration */}
-        {machine.status === 'FREE' && (
+        {/* FREE, or RESERVED for me → pick a duration to start */}
+        {(machine.status === 'FREE' || isMyReservation) && (
           <div>
-            <p className="text-slate-600 text-sm mb-3">Select wash duration:</p>
+            {isMyReservation && (
+              <p className="text-green-600 text-sm font-semibold mb-3">
+                This machine is reserved for you. Start your wash:
+              </p>
+            )}
+            {machine.status === 'FREE' && (
+              <p className="text-slate-600 text-sm mb-3">Select wash duration:</p>
+            )}
             <div className="grid grid-cols-3 gap-3">
               {[30, 45, 60].map((d) => (
                 <button
@@ -140,8 +145,8 @@ export default function Machine() {
           </p>
         )}
 
-        {/* RESERVED */}
-        {machine.status === 'RESERVED' && (
+        {/* RESERVED for someone else */}
+        {machine.status === 'RESERVED' && !isMyReservation && (
           <p className="text-slate-500 text-sm">
             This machine is reserved for the next person in the queue.
           </p>

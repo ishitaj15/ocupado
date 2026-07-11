@@ -1,10 +1,11 @@
 import pool from '../db/index.js'
 import { v4 as uuidv4 } from 'uuid'
+import { io } from '../server.js'
 
 // Join waitlist for a machine
 export const joinWaitlist = async (req, res) => {
   try {
-    const { machineId } = req.params
+    const { id: machineId } = req.params
     const studentId = req.user.id
 
     // Check machine exists
@@ -14,6 +15,18 @@ export const joinWaitlist = async (req, res) => {
     )
     if (machine.rows.length === 0) {
       return res.status(404).json({ error: 'Machine not found' })
+    }
+
+    // Block joining a new queue if student already holds 2 machines
+    const held = await pool.query(
+      `SELECT COUNT(*) FROM machines 
+       WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED')`,
+      [studentId]
+    )
+    if (parseInt(held.rows[0].count) >= 2) {
+      return res.status(400).json({
+        error: 'You already hold 2 machines. Free one before joining a new queue.'
+      })
     }
 
     // Check student not already in waitlist
@@ -56,7 +69,7 @@ export const joinWaitlist = async (req, res) => {
 // Confirm machine (student says "I'm coming")
 export const confirmMachine = async (req, res) => {
   try {
-    const { machineId } = req.params
+    const { id: machineId } = req.params
     const studentId = req.user.id
 
     // Find NOTIFIED entry for this student
@@ -70,15 +83,36 @@ export const confirmMachine = async (req, res) => {
       return res.status(404).json({ error: 'No pending confirmation found' })
     }
 
-    // Mark as CONFIRMED
+    // Limit: total held machines (ENGAGED + RESERVED) can't exceed 2
+    const heldCount = await pool.query(
+      `SELECT COUNT(*) FROM machines 
+       WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED')`,
+      [studentId]
+    )
+    if (parseInt(heldCount.rows[0].count) >= 2) {
+      return res.status(400).json({
+        error: 'You already hold 2 machines. Finish or release one before confirming another.'
+      })
+    }
+
+    // Mark waitlist entry as CONFIRMED
     await pool.query(
       'UPDATE waitlist SET status = $1 WHERE id = $2',
       ['CONFIRMED', result.rows[0].id]
     )
 
+    // Reserve the machine specifically for this student
+    await pool.query(
+      `UPDATE machines SET status = 'RESERVED', current_user_id = $1 WHERE id = $2`,
+      [studentId, machineId]
+    )
+
+    // Notify all clients so the machine shows RESERVED
+    io.emit('machine-status-update', { machineId, status: 'RESERVED', currentUserId: studentId })
+
     res.status(200).json({
       success: true,
-      message: 'Confirmed! Machine is reserved for you. Come up now.'
+      message: 'Confirmed! The machine is reserved for you — go start your wash.'
     })
   } catch (error) {
     console.error('confirmMachine error:', error.message)

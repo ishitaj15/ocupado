@@ -17,6 +17,7 @@ export const getStudentStatus = async (req, res) => {
     // 2. Waitlist entries — machines this student is queued for
     const waitlist = await pool.query(
       `SELECT w.id, w.machine_id, w.position, w.status, w.joined_at,
+              w.notified_at, w.confirmed_at,
               m.name AS machine_name, m.status AS machine_status
        FROM waitlist w
        JOIN machines m ON w.machine_id = m.id

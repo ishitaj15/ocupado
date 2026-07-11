@@ -55,8 +55,11 @@ const worker = new Worker('ocupado', async (job) => {
       return
     }
 
-    // Notify the chosen eligible student
-    await pool.query('UPDATE waitlist SET status = $1 WHERE id = $2', ['NOTIFIED', chosen.id])
+    // Notify the chosen eligible student (record notified_at for countdown)
+    await pool.query(
+      "UPDATE waitlist SET status = 'NOTIFIED', notified_at = NOW() WHERE id = $1",
+      [chosen.id]
+    )
     await pool.query('UPDATE machines SET status = $1 WHERE id = $2', ['RESERVED', machineId])
 
     socketNotifier.send(

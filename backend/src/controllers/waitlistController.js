@@ -96,10 +96,10 @@ export const confirmMachine = async (req, res) => {
       })
     }
 
-    // Mark waitlist entry as CONFIRMED
+    // Mark waitlist entry as CONFIRMED (record confirmed_at for countdown)
     await pool.query(
-      'UPDATE waitlist SET status = $1 WHERE id = $2',
-      ['CONFIRMED', result.rows[0].id]
+      "UPDATE waitlist SET status = 'CONFIRMED', confirmed_at = NOW() WHERE id = $1",
+      [result.rows[0].id]
     )
 
     // Reserve the machine specifically for this student

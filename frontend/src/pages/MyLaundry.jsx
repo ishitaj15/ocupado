@@ -74,6 +74,13 @@ export default function MyLaundry() {
     return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
   }
 
+  // Time left in a confirm/start window, counting down from a start timestamp
+  const windowLeft = (startTimestamp, minutes) => {
+    if (!startTimestamp) return null
+    const deadline = new Date(startTimestamp).getTime() + minutes * 60 * 1000
+    return deadline - now
+  }
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
@@ -133,12 +140,18 @@ export default function MyLaundry() {
                           )}
                           {w.status === 'NOTIFIED' && (
                             <p className="text-green-600 text-sm font-semibold flex items-center gap-1">
-                              <Bell className="w-4 h-4" /> It's your turn! Confirm within 5 minutes.
+                              <Bell className="w-4 h-4" /> It's your turn!{' '}
+                              {windowLeft(w.notified_at, 5) > 0
+                                ? `${formatTime(windowLeft(w.notified_at, 5))} left to confirm`
+                                : 'confirm now'}
                             </p>
                           )}
                           {w.status === 'CONFIRMED' && (
                             <p className="text-green-600 text-sm font-semibold">
-                              ✅ Reserved for you — go start your wash!
+                              ✅ Reserved for you —{' '}
+                              {windowLeft(w.confirmed_at, 3) > 0
+                                ? `${formatTime(windowLeft(w.confirmed_at, 3))} left to start`
+                                : 'start now'}
                             </p>
                           )}
                         </div>

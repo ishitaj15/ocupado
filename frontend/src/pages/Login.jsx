@@ -20,14 +20,21 @@ export default function Login() {
     setError('')
     setLoading(true)
     try {
-      if (isLogin) {
+     if (isLogin) {
         const res = await axios.post(`${API}/api/auth/login`, { email, password })
         login(res.data.student, res.data.token)
+        // Admin → admin page, student → dashboard
+        if (res.data.student.role === 'admin') {
+          navigate('/admin')
+        } else {
+          navigate('/')
+        }
       } else {
         const res = await axios.post(`${API}/api/auth/register`, { name, email, password })
         login(res.data.student, res.data.token)
+        navigate('/')
       }
-      navigate('/')
+      
     } catch (err) {
       setError(err.response?.data?.error || 'Something went wrong')
     } finally {

@@ -14,6 +14,13 @@ function ProtectedRoute({ children }) {
   return children
 }
 
+function AdminRoute({ children }) {
+  const { student } = useAuth()
+  if (!student) return <Navigate to="/login" />
+  if (student.role !== 'admin') return <Navigate to="/" />
+  return children
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -24,7 +31,9 @@ function AppRoutes() {
       <Route path="/my-laundry" element={
         <ProtectedRoute><MyLaundry /></ProtectedRoute>
       } />
-      <Route path="/admin" element={<Admin />} />
+      <Route path="/admin" element={
+        <AdminRoute><Admin /></AdminRoute>
+      } />
       <Route path="/about" element={<About />} />
     </Routes>
   )

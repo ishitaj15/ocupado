@@ -2,7 +2,7 @@ import { Worker } from 'bullmq'
 import connection from '../db/redis.js'
 import pool from '../db/index.js'
 import { SocketNotifier } from '../models/Notifier.js'
-import ocupadoQueue from './index.js'
+import ocupadoQueue, { deadLetterQueue } from './index.js'
 
 const worker = new Worker('ocupado', async (job) => {
 
@@ -160,8 +160,21 @@ worker.on('completed', (job) => {
   console.log(`✅ Job completed: ${job.name}`)
 })
 
-worker.on('failed', (job, err) => {
+worker.on('failed', async (job, err) => {
   console.error(`❌ Job failed: ${job.name} — ${err.message}`)
+
+  // If the job has exhausted all retry attempts, move it to the dead-letter queue
+  if (job.attemptsMade >= job.opts.attempts) {
+    console.error(`💀 Job ${job.name} failed permanently after ${job.attemptsMade} attempts — moving to DLQ`)
+
+    await deadLetterQueue.add('failed-job', {
+      originalJobName: job.name,
+      originalData: job.data,
+      failedReason: err.message,
+      attemptsMade: job.attemptsMade,
+      failedAt: new Date().toISOString(),
+    })
+  }
 })
 
 worker.on('error', (err) => {

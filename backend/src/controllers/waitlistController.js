@@ -5,18 +5,13 @@ import { v4 as uuidv4 } from 'uuid'
 export const joinWaitlist = async (req, res) => {
   try {
     const { machineId } = req.params
-    const { studentId } = req.body
-
-    if (!studentId) {
-      return res.status(400).json({ error: 'studentId is required' })
-    }
+    const studentId = req.user.id
 
     // Check machine exists
     const machine = await pool.query(
       'SELECT * FROM machines WHERE id = $1',
       [machineId]
     )
-
     if (machine.rows.length === 0) {
       return res.status(404).json({ error: 'Machine not found' })
     }
@@ -25,10 +20,9 @@ export const joinWaitlist = async (req, res) => {
     const existing = await pool.query(
       `SELECT * FROM waitlist 
        WHERE machine_id = $1 AND student_id = $2 
-       AND status = 'WAITING'`,
+       AND status IN ('WAITING', 'NOTIFIED')`,
       [machineId, studentId]
     )
-
     if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'Already in waitlist' })
     }
@@ -39,7 +33,6 @@ export const joinWaitlist = async (req, res) => {
        WHERE machine_id = $1 AND status = 'WAITING'`,
       [machineId]
     )
-
     const position = parseInt(count.rows[0].count) + 1
 
     // Add to waitlist
@@ -64,7 +57,7 @@ export const joinWaitlist = async (req, res) => {
 export const confirmMachine = async (req, res) => {
   try {
     const { machineId } = req.params
-    const { studentId } = req.body
+    const studentId = req.user.id
 
     // Find NOTIFIED entry for this student
     const result = await pool.query(
@@ -73,7 +66,6 @@ export const confirmMachine = async (req, res) => {
        AND status = 'NOTIFIED'`,
       [machineId, studentId]
     )
-
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'No pending confirmation found' })
     }

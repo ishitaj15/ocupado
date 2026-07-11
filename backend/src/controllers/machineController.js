@@ -16,7 +16,6 @@ export const createMachine = async (req, res) => {
 
     const machineId = uuidv4()
 
-    // Generate QR code URL
     const machineUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/machine/${machineId}`
     const qrCode = await QRCode.toDataURL(machineUrl)
 
@@ -82,12 +81,10 @@ export const updateMachineStatus = async (req, res) => {
       return res.status(404).json({ error: 'Machine not found' })
     }
 
-    // When machine goes FREE → notify next in waitlist
     if (status === 'FREE') {
       await ocupadoQueue.add('notify-next', { machineId: id })
     }
 
-    // Emit real-time update to ALL connected clients
     io.emit('machine-status-update', {
       machineId: result.rows[0].id,
       name: result.rows[0].name,
@@ -134,7 +131,6 @@ export const startWash = async (req, res) => {
 
     // Check machine is FREE
     const machine = await pool.query(
-      
       'SELECT * FROM machines WHERE id = $1',
       [id]
     )
@@ -150,7 +146,6 @@ export const startWash = async (req, res) => {
     const startedAt = new Date()
     const endsAt = new Date(startedAt.getTime() + duration * 60 * 1000)
 
-    // Update machine
     const result = await pool.query(
       `UPDATE machines 
        SET status = 'ENGAGED', 
@@ -163,21 +158,18 @@ export const startWash = async (req, res) => {
       [studentId, duration, startedAt, endsAt, id]
     )
 
-    // BullMQ job — auto free after exact wash duration
     await ocupadoQueue.add(
       'auto-free',
       { machineId: id },
       { delay: duration * 60 * 1000 }
     )
 
-    // BullMQ job — 5 min warning before wash ends
     await ocupadoQueue.add(
       '5-min-warning',
       { machineId: id, studentId },
       { delay: (duration - 5) * 60 * 1000 }
     )
 
-    // Emit real-time update
     io.emit('machine-status-update', {
       machineId: id,
       status: 'ENGAGED',
@@ -208,12 +200,10 @@ export const endWash = async (req, res) => {
       return res.status(404).json({ error: 'Machine not found' })
     }
 
-    // Only the current user can end wash
     if (machine.rows[0].current_user_id !== studentId) {
       return res.status(403).json({ error: 'Not authorized to end this wash' })
     }
 
-    // Reset machine
     const result = await pool.query(
       `UPDATE machines 
        SET status = 'FREE',
@@ -226,10 +216,8 @@ export const endWash = async (req, res) => {
       [id]
     )
 
-    // Trigger waitlist
     await ocupadoQueue.add('notify-next', { machineId: id })
 
-    // Emit real-time update
     io.emit('machine-status-update', {
       machineId: id,
       status: 'FREE',

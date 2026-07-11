@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import MyLaundry from './pages/MyLaundry'
 import Admin from './pages/Admin'
 import About from './pages/About'
+import Machine from './pages/Machine'
 import { useAuth } from './context/AuthContext'
 
 function ProtectedRoute({ children }) {
@@ -27,6 +28,9 @@ function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route path="/" element={
         <ProtectedRoute><Dashboard /></ProtectedRoute>
+      } />
+      <Route path="/machine/:id" element={
+        <ProtectedRoute><Machine /></ProtectedRoute>
       } />
       <Route path="/my-laundry" element={
         <ProtectedRoute><MyLaundry /></ProtectedRoute>

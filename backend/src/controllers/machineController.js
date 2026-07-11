@@ -46,9 +46,15 @@ export const getMachines = async (req, res) => {
       'SELECT * FROM machines ORDER BY created_at ASC'
     )
 
-    const machines = result.rows.map(row =>
-      new Machine(row.id, row.name, row.status, row.qr_url)
-    )
+    const machines = result.rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      status: row.status,
+      qrUrl: row.qr_url,
+      currentUserId: row.current_user_id,
+      endsAt: row.ends_at,
+      washDuration: row.wash_duration,
+    }))
 
     res.status(200).json({ success: true, machines })
   } catch (error) {
@@ -117,8 +123,18 @@ export const startWash = async (req, res) => {
       return res.status(400).json({ error: 'Duration must be 30, 45, or 60 minutes' })
     }
 
+    // Limit: a student can use at most 2 machines at once
+    const activeCount = await pool.query(
+      `SELECT COUNT(*) FROM machines WHERE current_user_id = $1 AND status = 'ENGAGED'`,
+      [studentId]
+    )
+    if (parseInt(activeCount.rows[0].count) >= 2) {
+      return res.status(400).json({ error: 'You can only use 2 machines at a time' })
+    }
+
     // Check machine is FREE
     const machine = await pool.query(
+      
       'SELECT * FROM machines WHERE id = $1',
       [id]
     )

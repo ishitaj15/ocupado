@@ -1,6 +1,7 @@
 import pool from '../db/index.js'
 import { v4 as uuidv4 } from 'uuid'
 import { io } from '../server.js'
+import ocupadoQueue from '../queue/index.js'
 
 // Join waitlist for a machine
 export const joinWaitlist = async (req, res) => {
@@ -110,9 +111,16 @@ export const confirmMachine = async (req, res) => {
     // Notify all clients so the machine shows RESERVED
     io.emit('machine-status-update', { machineId, status: 'RESERVED', currentUserId: studentId })
 
+    // Schedule a 3-min timer: if they don't start the wash, release the machine
+    await ocupadoQueue.add(
+      'reservation-timeout',
+      { machineId, studentId },
+      { delay: 3 * 60 * 1000 }
+    )
+
     res.status(200).json({
       success: true,
-      message: 'Confirmed! The machine is reserved for you — go start your wash.'
+      message: 'Confirmed! The machine is reserved for you — start your wash within 3 minutes.'
     })
   } catch (error) {
     console.error('confirmMachine error:', error.message)

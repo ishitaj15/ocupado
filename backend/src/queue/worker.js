@@ -102,6 +102,46 @@ const worker = new Worker('ocupado', async (job) => {
   }
 
   // ─────────────────────────────────────────
+  // Job 2b — reservation timeout (confirmed but never started)
+  // ─────────────────────────────────────────
+  if (job.name === 'reservation-timeout') {
+    const { machineId, studentId } = job.data
+    console.log(`⏰ Processing reservation-timeout for machine ${machineId}`)
+
+    // Is the machine still RESERVED for this student? (i.e. they never started)
+    const result = await pool.query(
+      `SELECT * FROM machines 
+       WHERE id = $1 AND status = 'RESERVED' AND current_user_id = $2`,
+      [machineId, studentId]
+    )
+
+    if (result.rows.length === 0) {
+      console.log('Machine already started or released, skipping reservation-timeout')
+      return
+    }
+
+    // They didn't start in time → release the machine and their waitlist entry
+    await pool.query(
+      `UPDATE waitlist SET status = 'EXPIRED' 
+       WHERE machine_id = $1 AND student_id = $2 AND status = 'CONFIRMED'`,
+      [machineId, studentId]
+    )
+
+    await pool.query(
+      `UPDATE machines 
+       SET status = 'FREE', current_user_id = NULL, wash_duration = NULL,
+           started_at = NULL, ends_at = NULL
+       WHERE id = $1`,
+      [machineId]
+    )
+
+    console.log(`⏰ Reservation expired — student didn't start. Releasing machine ${machineId}`)
+
+    // Give it to the next eligible person
+    await ocupadoQueue.add('notify-next', { machineId })
+  }
+
+  // ─────────────────────────────────────────
   // Job 3 — auto free after exact wash duration
   // ─────────────────────────────────────────
   if (job.name === 'auto-free') {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import axios from 'axios'
@@ -20,6 +20,12 @@ export default function Admin() {
   const [sPassword, setSPassword] = useState('')
   const [sLoading, setSLoading] = useState(false)
 
+  const [machineToDelete, setMachineToDelete] = useState(null)
+  const [studentToDelete, setStudentToDelete] = useState(null)
+
+  const emailRef = useRef(null)
+  const passwordRef = useRef(null)
+
   const authHeader = { headers: { Authorization: `Bearer ${token}` } }
   const softShadow = 'shadow-[0_12px_35px_rgba(0,0,0,0.06)]'
 
@@ -35,7 +41,10 @@ export default function Admin() {
   const fetchStudents = async () => {
     try {
       const res = await axios.get(`${API}/api/students`, authHeader)
-      setStudents(res.data.students || [])
+      const list = res.data.students || []
+      // Admins first, then students (each group keeps newest-first order)
+      list.sort((a, b) => (a.role === 'admin' ? -1 : 1) - (b.role === 'admin' ? -1 : 1))
+      setStudents(list)
     } catch (err) {
       toast.error('Failed to load students')
     }
@@ -67,6 +76,15 @@ export default function Admin() {
   const handleAddStudent = async () => {
     if (!sName.trim() || !sEmail.trim() || !sPassword.trim()) {
       toast.error('Fill all student fields')
+      return
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(sEmail)) {
+      toast.error('Enter a valid email, e.g. name@example.com')
+      return
+    }
+    if (sPassword.length < 6) {
+      toast.error('Password must be at least 6 characters')
       return
     }
     setSLoading(true)
@@ -103,14 +121,29 @@ export default function Admin() {
     }
   }
 
-  const handleDeleteMachine = async (machine) => {
-    if (!window.confirm(`Remove ${machine.name}? This cannot be undone.`)) return
+  const confirmDeleteMachine = async () => {
+    if (!machineToDelete) return
     try {
-      await axios.delete(`${API}/api/machines/${machine.id}`, authHeader)
-      toast.success(`${machine.name} removed`)
+      await axios.delete(`${API}/api/machines/${machineToDelete.id}`, authHeader)
+      toast.success(`${machineToDelete.name} removed`)
       fetchMachines()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to remove machine')
+    } finally {
+      setMachineToDelete(null)
+    }
+  }
+
+  const confirmDeleteStudent = async () => {
+    if (!studentToDelete) return
+    try {
+      await axios.delete(`${API}/api/students/${studentToDelete.id}`, authHeader)
+      toast.success(`${studentToDelete.name} removed`)
+      fetchStudents()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to remove student')
+    } finally {
+      setStudentToDelete(null)
     }
   }
 
@@ -153,6 +186,7 @@ export default function Admin() {
               placeholder="Machine name (e.g. Machine 8)"
               value={machineName}
               onChange={(e) => setMachineName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreateMachine()}
             />
             <button
               onClick={handleCreateMachine}
@@ -171,19 +205,24 @@ export default function Admin() {
               placeholder="Student name"
               value={sName}
               onChange={(e) => setSName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && emailRef.current?.focus()}
             />
             <input
+              ref={emailRef}
               className="w-full border border-cream-dark rounded-xl p-3 mb-3 focus:outline-none focus:ring-2 focus:ring-navy bg-cream/40"
-              placeholder="Email"
+              placeholder="Email (e.g. name@example.com)"
               value={sEmail}
               onChange={(e) => setSEmail(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && passwordRef.current?.focus()}
             />
             <input
+              ref={passwordRef}
               type="password"
               className="w-full border border-cream-dark rounded-xl p-3 mb-3 focus:outline-none focus:ring-2 focus:ring-navy bg-cream/40"
-              placeholder="Temporary password"
+              placeholder="Password"
               value={sPassword}
               onChange={(e) => setSPassword(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddStudent()}
             />
             <button
               onClick={handleAddStudent}
@@ -219,7 +258,7 @@ export default function Admin() {
                       {m.status === 'MAINTENANCE' ? 'Set Free' : 'Maintenance'}
                     </button>
                     <button
-                      onClick={() => handleDeleteMachine(m)}
+                      onClick={() => setMachineToDelete(m)}
                       className="flex items-center gap-1 text-xs bg-red-50 text-red-600 hover:bg-red-100 rounded-lg px-3 py-2 transition"
                       title="Remove machine"
                     >
@@ -257,6 +296,7 @@ export default function Admin() {
                     <th className="py-2 pr-4 font-medium">Name</th>
                     <th className="py-2 pr-4 font-medium">Email</th>
                     <th className="py-2 pr-4 font-medium">Role</th>
+                    <th className="py-2 font-medium text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -275,6 +315,17 @@ export default function Admin() {
                           {s.role}
                         </span>
                       </td>
+                      <td className="py-2 text-right">
+                        {s.id !== student?.id && (
+                          <button
+                            onClick={() => setStudentToDelete(s)}
+                            className="inline-flex items-center gap-1 text-xs bg-red-50 text-red-600 hover:bg-red-100 rounded-lg px-3 py-1.5 transition"
+                            title="Remove student"
+                          >
+                            <Trash2 className="w-3 h-3" /> Remove
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -283,6 +334,80 @@ export default function Admin() {
           )}
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {machineToDelete && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] px-4"
+          onClick={() => setMachineToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-cream-dark p-6 w-full max-w-sm text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="font-serif text-xl font-bold text-navy mb-1">
+              Remove {machineToDelete.name}?
+            </h3>
+            <p className="text-slate-500 text-sm mb-5">
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setMachineToDelete(null)}
+                className="flex-1 bg-cream text-navy rounded-xl py-2.5 font-semibold hover:bg-cream-dark transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteMachine}
+                className="flex-1 bg-red-500 text-white rounded-xl py-2.5 font-semibold hover:bg-red-600 transition"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete student confirmation modal */}
+      {studentToDelete && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100] px-4"
+          onClick={() => setStudentToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-cream-dark p-6 w-full max-w-sm text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <h3 className="font-serif text-xl font-bold text-navy mb-1">
+              Remove {studentToDelete.name}?
+            </h3>
+            <p className="text-slate-500 text-sm mb-5">
+              They will no longer be able to log in. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStudentToDelete(null)}
+                className="flex-1 bg-cream text-navy rounded-xl py-2.5 font-semibold hover:bg-cream-dark transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteStudent}
+                className="flex-1 bg-red-500 text-white rounded-xl py-2.5 font-semibold hover:bg-red-600 transition"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

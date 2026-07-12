@@ -69,3 +69,41 @@ export const getAllStudents = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+// DELETE /api/students/:id — admin: remove a student (e.g. left the hostel)
+export const deleteStudent = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    // Can't delete yourself (prevents locking yourself out)
+    if (id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot remove your own account' })
+    }
+
+    const student = await pool.query('SELECT * FROM students WHERE id = $1', [id])
+    if (student.rows.length === 0) {
+      return res.status(404).json({ error: 'Student not found' })
+    }
+
+    // Safety guard: don't delete a student who is currently holding a machine
+    const active = await pool.query(
+      `SELECT COUNT(*) FROM machines
+       WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED')`,
+      [id]
+    )
+    if (parseInt(active.rows[0].count) > 0) {
+      return res.status(400).json({
+        error: 'This student is currently using a machine. Free it before removing them.',
+      })
+    }
+
+    // Clean up any queue entries, then delete the student
+    await pool.query('DELETE FROM waitlist WHERE student_id = $1', [id])
+    await pool.query('DELETE FROM students WHERE id = $1', [id])
+
+    res.status(200).json({ success: true, message: 'Student removed' })
+  } catch (error) {
+    console.error('deleteStudent error:', error.message)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}

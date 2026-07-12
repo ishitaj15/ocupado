@@ -35,9 +35,14 @@ const worker = new Worker('ocupado', async (job) => {
        ORDER BY w.position ASC`
     )
 
-    // Find first ELIGIBLE student: holds < 2 machines AND no pending offer
+    // Find first ELIGIBLE student: holds < 2 machines AND no pending offer.
+    // Note: a student who joined the queue and then filled up to 2 machines
+    // stays in the queue but is skipped here until they drop below the limit.
+    // This is intentional — it prevents deadlock without needing to eagerly
+    // remove them from the queue when their machine count changes.
     let chosen = null
     for (const entry of waiting.rows) {
+      
       const held = await pool.query(
         `SELECT COUNT(*) FROM machines 
          WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED')`,

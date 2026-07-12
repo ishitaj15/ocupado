@@ -276,30 +276,3 @@ export const toggleMaintenance = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' })
   }
 }
-
-// Get the waitlist queue for a specific machine
-export const getMachineQueue = async (req, res) => {
-  try {
-    const { id } = req.params
-
-    const result = await pool.query(
-      `SELECT w.id, w.student_id, w.position, w.status, w.joined_at,
-              s.name AS student_name
-       FROM waitlist w
-       JOIN students s ON w.student_id = s.id
-       WHERE w.machine_id = $1
-         AND w.status IN ('WAITING', 'NOTIFIED')
-       ORDER BY w.position ASC`,
-      [id]
-    )
-
-    res.status(200).json({
-      success: true,
-      count: result.rows.length,
-      queue: result.rows,
-    })
-  } catch (error) {
-    console.error('getMachineQueue error:', error.message)
-    res.status(500).json({ error: 'Internal server error' })
-  }
-}

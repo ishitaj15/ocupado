@@ -14,7 +14,7 @@ export default function MyLaundry() {
   const { student, token } = useAuth()
   const navigate = useNavigate()
 
-  const [activeWash, setActiveWash] = useState(null)
+  const [activeWashes, setActiveWashes] = useState([])
   const [waitlist, setWaitlist] = useState([])
   const [loading, setLoading] = useState(true)
   const [now, setNow] = useState(Date.now())
@@ -24,8 +24,8 @@ export default function MyLaundry() {
   const fetchStatus = async () => {
     try {
       const res = await axios.get(`${API}/api/students/${student.id}/status`, authHeader)
-      setActiveWash(res.data.activeWash)
-      setWaitlist(res.data.waitlist)
+      setActiveWashes(res.data.activeWashes || [])
+      setWaitlist(res.data.waitlist || [])
     } catch (err) {
       toast.error('Failed to load your laundry status')
     } finally {
@@ -74,7 +74,6 @@ export default function MyLaundry() {
     return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
   }
 
-  // Time left in a confirm/start window, counting down from a start timestamp
   const windowLeft = (startTimestamp, minutes) => {
     if (!startTimestamp) return null
     const deadline = new Date(startTimestamp).getTime() + minutes * 60 * 1000
@@ -92,26 +91,35 @@ export default function MyLaundry() {
           <p className="text-center text-slate-500">Loading...</p>
         ) : (
           <>
-            {/* Active wash */}
+            {/* Active washes — can be up to 2 */}
             <div>
-              <h2 className="font-semibold text-slate-700 mb-3">Active Wash</h2>
-              {activeWash ? (
-                <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-bold text-navy text-lg">{activeWash.name}</p>
-                      <p className="text-slate-500 text-sm">Your wash is running</p>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2 text-navy">
-                        <Clock className="w-5 h-5" />
-                        <span className="text-2xl font-bold tabular-nums">
-                          {formatTime(new Date(activeWash.ends_at).getTime() - now)}
-                        </span>
+              <h2 className="font-semibold text-slate-700 mb-3">
+                Active {activeWashes.length === 1 ? 'Wash' : 'Washes'}
+              </h2>
+              {activeWashes.length > 0 ? (
+                <div className="space-y-3">
+                  {activeWashes.map((wash) => (
+                    <div
+                      key={wash.id}
+                      className="bg-white rounded-2xl shadow-md border border-slate-200 p-6"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-bold text-navy text-lg">{wash.name}</p>
+                          <p className="text-slate-500 text-sm">Your wash is running</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="flex items-center gap-2 text-navy">
+                            <Clock className="w-5 h-5" />
+                            <span className="text-2xl font-bold tabular-nums">
+                              {formatTime(new Date(wash.ends_at).getTime() - now)}
+                            </span>
+                          </div>
+                          <p className="text-slate-400 text-xs">remaining</p>
+                        </div>
                       </div>
-                      <p className="text-slate-400 text-xs">remaining</p>
                     </div>
-                  </div>
+                  ))}
                 </div>
               ) : (
                 <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-6 text-center text-slate-400">
@@ -120,7 +128,7 @@ export default function MyLaundry() {
               )}
             </div>
 
-            {/* Waitlist */}
+            {/* Queue */}
             <div>
               <h2 className="font-semibold text-slate-700 mb-3">Your Queue</h2>
               {waitlist.length > 0 ? (
@@ -129,32 +137,50 @@ export default function MyLaundry() {
                     <div
                       key={w.id}
                       className={`bg-white rounded-2xl shadow-md border p-5 ${
-                        w.status === 'NOTIFIED' ? 'border-green-400' : 'border-slate-200'
+                        w.status === 'NOTIFIED' || w.status === 'CONFIRMED'
+                          ? 'border-green-400'
+                          : 'border-slate-200'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-bold text-navy">{w.machine_name}</p>
+                          {/* WAITING — no machine assigned yet */}
                           {w.status === 'WAITING' && (
-                            <p className="text-slate-500 text-sm">Position #{w.position} in queue</p>
+                            <>
+                              <p className="font-bold text-navy">Waiting for a machine</p>
+                              <p className="text-slate-500 text-sm">
+                                You're #{w.position} in line for the next available machine
+                              </p>
+                            </>
                           )}
+
+                          {/* NOTIFIED — a machine has been offered */}
                           {w.status === 'NOTIFIED' && (
-                            <p className="text-green-600 text-sm font-semibold flex items-center gap-1">
-                              <Bell className="w-4 h-4" /> It's your turn!{' '}
-                              {windowLeft(w.notified_at, 5) > 0
-                                ? `${formatTime(windowLeft(w.notified_at, 5))} left to confirm`
-                                : 'confirm now'}
-                            </p>
+                            <>
+                              <p className="font-bold text-navy">{w.machine_name} is ready!</p>
+                              <p className="text-green-600 text-sm font-semibold flex items-center gap-1">
+                                <Bell className="w-4 h-4" />{' '}
+                                {windowLeft(w.notified_at, 5) > 0
+                                  ? `${formatTime(windowLeft(w.notified_at, 5))} left to confirm`
+                                  : 'confirm now'}
+                              </p>
+                            </>
                           )}
+
+                          {/* CONFIRMED — reserved, go start */}
                           {w.status === 'CONFIRMED' && (
-                            <p className="text-green-600 text-sm font-semibold">
-                              ✅ Reserved for you —{' '}
-                              {windowLeft(w.confirmed_at, 3) > 0
-                                ? `${formatTime(windowLeft(w.confirmed_at, 3))} left to start`
-                                : 'start now'}
-                            </p>
+                            <>
+                              <p className="font-bold text-navy">{w.machine_name} reserved for you</p>
+                              <p className="text-green-600 text-sm font-semibold">
+                                ✅{' '}
+                                {windowLeft(w.confirmed_at, 3) > 0
+                                  ? `${formatTime(windowLeft(w.confirmed_at, 3))} left to start`
+                                  : 'start now'}
+                              </p>
+                            </>
                           )}
                         </div>
+
                         {w.status === 'NOTIFIED' && (
                           <button
                             onClick={() => handleConfirm(w.machine_id)}

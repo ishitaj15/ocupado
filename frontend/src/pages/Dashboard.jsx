@@ -7,6 +7,7 @@ import MachineCard from '../components/MachineCard'
 import Navbar from '../components/Navbar'
 import { API } from '../config'
 import { WashingMachine, Loader, Users } from 'lucide-react'
+import toast from 'react-hot-toast'
 
 let socket
 
@@ -24,6 +25,19 @@ export default function Dashboard() {
       console.error('Failed to fetch machines:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleNotify = async () => {
+    try {
+      await axios.post(
+        `${API}/api/waitlist/join`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      toast.success("You're in the queue! We'll notify you when a machine is free.")
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not join the queue')
     }
   }
 
@@ -68,7 +82,7 @@ export default function Dashboard() {
         <p className="text-slate-500 mb-8">Here's what's happening in your laundry room.</p>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
             <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
               <WashingMachine className="w-6 h-6 text-green-600" />
@@ -100,6 +114,30 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Global notify — only when NO machine is free */}
+        {available === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-10 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-semibold text-navy">All machines are busy right now</p>
+              <p className="text-slate-500 text-sm">
+                Join the queue and we'll notify you when one frees up.
+              </p>
+            </div>
+            <button
+              onClick={handleNotify}
+              className="bg-navy text-white rounded-xl px-5 py-3 font-semibold hover:bg-navy-dark transition whitespace-nowrap"
+            >
+              🔔 Notify me when free
+            </button>
+          </div>
+        ) : (
+          <div className="bg-green-50 rounded-2xl border border-green-200 p-4 mb-10 text-center">
+            <p className="text-green-700 font-medium text-sm">
+              ✅ A machine is available — tap it below to start washing!
+            </p>
+          </div>
+        )}
+
         {/* Machines */}
         <h2 className="font-serif text-2xl font-bold text-navy mb-1">Laundry Machines</h2>
         <p className="text-slate-500 mb-6">Live status updates — no refresh needed</p>
@@ -109,7 +147,7 @@ export default function Dashboard() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {machines.map((machine) => (
-              <MachineCard key={machine.id} machine={machine} onNotify={fetchMachines} />
+              <MachineCard key={machine.id} machine={machine} />
             ))}
           </div>
         )}

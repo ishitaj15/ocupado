@@ -1,9 +1,6 @@
-import axios from 'axios'
-import toast from 'react-hot-toast'
-import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { API } from '../config'
-import { Bell, Wrench } from 'lucide-react'
+import { useAuth } from '../context/AuthContext'
+import { Wrench } from 'lucide-react'
 
 const statusConfig = {
   FREE: { color: 'bg-green-50 border-green-300', badge: 'bg-green-500', label: 'Free' },
@@ -12,28 +9,14 @@ const statusConfig = {
   MAINTENANCE: { color: 'bg-orange-50 border-orange-300', badge: 'bg-orange-500', label: 'Maintenance' },
 }
 
-export default function MachineCard({ machine, onNotify }) {
-  const { token, student } = useAuth()
+export default function MachineCard({ machine }) {
+  const { student } = useAuth()
   const navigate = useNavigate()
   const config = statusConfig[machine.status] || statusConfig.FREE
 
-  // Is this machine being used by ME?
-  const isMine = machine.status === 'ENGAGED' && machine.currentUserId === student.id
-
-  const handleNotify = async (e) => {
-    e.stopPropagation()
-    try {
-      await axios.post(
-        `${API}/api/machines/${machine.id}/waitlist`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
-      toast.success('Added to waitlist! We\'ll notify you when it\'s free.')
-      onNotify && onNotify()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Could not join waitlist')
-    }
-  }
+  const isMine =
+    (machine.status === 'ENGAGED' || machine.status === 'RESERVED') &&
+    machine.currentUserId === student.id
 
   return (
     <div
@@ -56,21 +39,16 @@ export default function MachineCard({ machine, onNotify }) {
         </p>
       )}
 
-      {/* Engaged/Reserved by SOMEONE ELSE → offer notify */}
-      {!isMine && (machine.status === 'ENGAGED' || machine.status === 'RESERVED') && (
-        <button
-          onClick={handleNotify}
-          className="w-full mt-2 flex items-center justify-center gap-2 bg-blue-600 text-white rounded-lg p-2 text-sm font-semibold hover:bg-blue-700 transition"
-        >
-          <Bell className="w-4 h-4" /> Notify Me When Free
-        </button>
-      )}
-
       {/* Free */}
       {machine.status === 'FREE' && (
         <p className="text-green-600 text-sm font-medium mt-2">
           ✅ Tap to start washing
         </p>
+      )}
+
+      {/* Engaged/Reserved by someone else — just informational, no button */}
+      {!isMine && (machine.status === 'ENGAGED' || machine.status === 'RESERVED') && (
+        <p className="text-slate-500 text-sm mt-2">In use</p>
       )}
 
       {/* Maintenance */}

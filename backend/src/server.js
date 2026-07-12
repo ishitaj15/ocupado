@@ -46,6 +46,7 @@ app.use(express.json())
 // Routes
 import machineRoutes from './routes/machineRoutes.js'
 import authRoutes from './routes/authRoutes.js'
+import waitlistRoutes from './routes/waitlistRoutes.js'
 
 
 app.use('/api/admin', adminRoutes)
@@ -57,6 +58,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes)
 app.use('/api/machines', machineRoutes)
 app.use('/api/students', studentRoutes)
+app.use('/api/waitlist', waitlistRoutes)
 
 // Socket.io connection
 io.on('connection', (socket) => {

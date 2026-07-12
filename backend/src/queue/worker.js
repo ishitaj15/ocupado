@@ -10,23 +10,32 @@ const worker = new Worker('ocupado', async (job) => {
   const socketNotifier = new SocketNotifier(io)
 
   // ─────────────────────────────────────────
-  // Job 1 — notify next ELIGIBLE student in waitlist
+  // Job 1 — offer a freed machine to next ELIGIBLE student (global queue)
   // ─────────────────────────────────────────
   if (job.name === 'notify-next') {
     const { machineId } = job.data
-    console.log(`📋 Processing notify-next for machine ${machineId}`)
+    console.log(`📋 Processing notify-next — machine ${machineId} is free`)
 
-    // Get ALL waiting students in order
+    // Make sure this machine is actually FREE before offering it
+    const machineCheck = await pool.query(
+      `SELECT status FROM machines WHERE id = $1`,
+      [machineId]
+    )
+    if (machineCheck.rows.length === 0 || machineCheck.rows[0].status !== 'FREE') {
+      console.log(`Machine ${machineId} is not FREE — skipping offer`)
+      return
+    }
+
+    // Get the GLOBAL queue (all waiting students, in order)
     const waiting = await pool.query(
       `SELECT w.*, s.name as student_name 
        FROM waitlist w 
        JOIN students s ON w.student_id = s.id 
-       WHERE w.machine_id = $1 AND w.status = 'WAITING'
-       ORDER BY w.position ASC`,
-      [machineId]
+       WHERE w.status = 'WAITING'
+       ORDER BY w.position ASC`
     )
 
-    // Walk the queue, find the first student NOT already holding 2 machines
+    // Find first ELIGIBLE student: holds < 2 machines AND no pending offer
     let chosen = null
     for (const entry of waiting.rows) {
       const held = await pool.query(
@@ -34,36 +43,47 @@ const worker = new Worker('ocupado', async (job) => {
          WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED')`,
         [entry.student_id]
       )
-      if (parseInt(held.rows[0].count) < 2) {
-        chosen = entry
-        break
+      if (parseInt(held.rows[0].count) >= 2) {
+        console.log(`⏭️ Skipping ${entry.student_name} — already holds 2 machines`)
+        continue
       }
-      console.log(`⏭️ Skipping ${entry.student_name} — already holds 2 machines`)
+
+      const pending = await pool.query(
+        `SELECT COUNT(*) FROM waitlist 
+         WHERE student_id = $1 AND status IN ('NOTIFIED', 'CONFIRMED')`,
+        [entry.student_id]
+      )
+      if (parseInt(pending.rows[0].count) > 0) {
+        console.log(`⏭️ Skipping ${entry.student_name} — already has a pending offer`)
+        continue
+      }
+
+      chosen = entry
+      break
     }
 
-    // No eligible student → machine goes FREE (open to all)
+    // No eligible student → machine stays FREE (open to all)
     if (!chosen) {
-      console.log(`No eligible students waiting for machine ${machineId} — setting FREE`)
-      await pool.query(
-        `UPDATE machines 
-         SET status = 'FREE', current_user_id = NULL, wash_duration = NULL,
-             started_at = NULL, ends_at = NULL
-         WHERE id = $1`,
-        [machineId]
-      )
-      io.emit('machine-status-update', { machineId, status: 'FREE', currentUserId: null, endsAt: null })
+      console.log(`No eligible students in queue — machine ${machineId} stays FREE`)
       return
     }
 
-    // Notify the chosen eligible student (record notified_at for countdown)
+    // Offer THIS machine to the chosen student
     await pool.query(
-      "UPDATE waitlist SET status = 'NOTIFIED', notified_at = NOW() WHERE id = $1",
-      [chosen.id]
+      `UPDATE waitlist 
+       SET status = 'NOTIFIED', machine_id = $1, notified_at = NOW() 
+       WHERE id = $2`,
+      [machineId, chosen.id]
     )
-    await pool.query('UPDATE machines SET status = $1 WHERE id = $2', ['RESERVED', machineId])
+
+    // Reserve the machine so no one else grabs it during the confirm window
+    await pool.query(
+      `UPDATE machines SET status = 'RESERVED' WHERE id = $1`,
+      [machineId]
+    )
 
     socketNotifier.send(
-      `🟢 Machine is free! Confirm within 5 minutes or you'll lose your spot.`,
+      `🟢 A machine is free! Confirm within 5 minutes or you'll lose your spot.`,
       chosen.student_id
     )
 
@@ -75,15 +95,15 @@ const worker = new Worker('ocupado', async (job) => {
       { delay: 5 * 60 * 1000 }
     )
 
-    console.log(`✅ Notified student ${chosen.student_name}`)
+    console.log(`✅ Offered machine ${machineId} to ${chosen.student_name}`)
   }
 
   // ─────────────────────────────────────────
-  // Job 2 — handle 5 min confirmation timeout
+  // Job 2 — 5 min confirmation timeout (notified but didn't confirm)
   // ─────────────────────────────────────────
   if (job.name === 'timeout-confirmation') {
     const { machineId, waitlistEntryId } = job.data
-    console.log(`⏰ Processing timeout for waitlist entry ${waitlistEntryId}`)
+    console.log(`⏰ Processing confirm-timeout for waitlist entry ${waitlistEntryId}`)
 
     const result = await pool.query(
       'SELECT * FROM waitlist WHERE id = $1 AND status = $2',
@@ -95,12 +115,21 @@ const worker = new Worker('ocupado', async (job) => {
       return
     }
 
+    // They didn't confirm → expire their entry
     await pool.query(
       'UPDATE waitlist SET status = $1 WHERE id = $2',
       ['EXPIRED', waitlistEntryId]
     )
 
-    console.log(`⏰ Student timed out — moving to next in queue`)
+    // Free the machine and re-offer it to the queue
+    await pool.query(
+      `UPDATE machines 
+       SET status = 'FREE', current_user_id = NULL 
+       WHERE id = $1 AND status = 'RESERVED'`,
+      [machineId]
+    )
+
+    console.log(`⏰ Confirm timed out — re-offering machine ${machineId}`)
     await ocupadoQueue.add('notify-next', { machineId })
   }
 
@@ -161,23 +190,16 @@ const worker = new Worker('ocupado', async (job) => {
       return
     }
 
-    // Reset all wash columns
     await pool.query(
       `UPDATE machines 
-       SET status = 'FREE',
-           current_user_id = NULL,
-           wash_duration = NULL,
-           started_at = NULL,
-           ends_at = NULL
+       SET status = 'FREE', current_user_id = NULL, wash_duration = NULL,
+           started_at = NULL, ends_at = NULL
        WHERE id = $1`,
       [machineId]
     )
 
     io.emit('machine-status-update', {
-      machineId,
-      status: 'FREE',
-      currentUserId: null,
-      endsAt: null
+      machineId, status: 'FREE', currentUserId: null, endsAt: null
     })
 
     await ocupadoQueue.add('notify-next', { machineId })
@@ -208,7 +230,6 @@ worker.on('completed', (job) => {
 worker.on('failed', async (job, err) => {
   console.error(`❌ Job failed: ${job.name} — ${err.message}`)
 
-  // If the job has exhausted all retry attempts, move it to the dead-letter queue
   if (job.attemptsMade >= job.opts.attempts) {
     console.error(`💀 Job ${job.name} failed permanently after ${job.attemptsMade} attempts — moving to DLQ`)
 

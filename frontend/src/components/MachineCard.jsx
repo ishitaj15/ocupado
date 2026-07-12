@@ -58,14 +58,18 @@ export default function MachineCard({ machine, now = Date.now(), shadow = '', on
       {/* ENGAGED — progress bar + remaining */}
       {machine.status === 'ENGAGED' && (
         <>
-          <p className="text-red-500 text-sm font-medium flex items-center gap-1 mb-1">
-            <span className="w-2 h-2 rounded-full bg-red-500" />
+          <p className={`text-sm font-medium flex items-center gap-1 mb-1 ${isMine ? 'text-navy' : 'text-red-500'}`}>
+            <span className={`w-2 h-2 rounded-full ${isMine ? 'bg-navy' : 'bg-red-500'}`} />
             {isMine ? "You're washing" : 'Washing in progress'}
           </p>
           <p className="text-slate-500 text-sm mb-2">{minsLeft} min remaining</p>
           <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-red-400 to-red-500 h-2 rounded-full transition-all ease-out duration-700"
+              className={`h-2 rounded-full transition-all ease-out duration-700 ${
+                isMine
+                  ? 'bg-gradient-to-r from-navy-light to-navy'
+                  : 'bg-gradient-to-r from-red-400 to-red-500'
+              }`}
               style={{ width: `${percent}%` }}
             />
           </div>

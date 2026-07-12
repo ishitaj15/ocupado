@@ -13,6 +13,14 @@ export default {
           light: '#334155',
         },
         accent: '#2563eb',
+        cream: {
+          DEFAULT: '#f5ece0',
+          dark: '#ece0cf',
+        },
+        warm: {
+          DEFAULT: '#8b6f47',
+          light: '#a68a64',
+        },
       },
       fontFamily: {
         serif: ['"Playfair Display"', 'serif'],

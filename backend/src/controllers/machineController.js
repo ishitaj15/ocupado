@@ -276,3 +276,33 @@ export const toggleMaintenance = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+// DELETE /api/machines/:id — admin: remove a machine (only if not in active use)
+export const deleteMachine = async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const machine = await pool.query('SELECT * FROM machines WHERE id = $1', [id])
+    if (machine.rows.length === 0) {
+      return res.status(404).json({ error: 'Machine not found' })
+    }
+
+    // Safety: don't delete a machine that's currently in use or reserved
+    if (['ENGAGED', 'RESERVED'].includes(machine.rows[0].status)) {
+      return res.status(400).json({
+        error: 'Cannot remove a machine that is in use or reserved. Wait until it is free.',
+      })
+    }
+
+    // Clean up any waitlist entries pointing at this machine, then delete
+    await pool.query('DELETE FROM waitlist WHERE machine_id = $1', [id])
+    await pool.query('DELETE FROM machines WHERE id = $1', [id])
+
+    io.emit('machine-status-update', { machineId: id, deleted: true })
+
+    res.status(200).json({ success: true, message: 'Machine removed' })
+  } catch (error) {
+    console.error('deleteMachine error:', error.message)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}

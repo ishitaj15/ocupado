@@ -54,3 +54,18 @@ export const getStudentStatus = async (req, res) => {
     res.status(500).json({ error: 'Internal server error' })
   }
 }
+
+// GET /api/students — admin: list all registered students
+export const getAllStudents = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, name, email, role, created_at
+       FROM students
+       ORDER BY created_at DESC`
+    )
+    res.status(200).json({ success: true, students: result.rows })
+  } catch (error) {
+    console.error('getAllStudents error:', error.message)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+}

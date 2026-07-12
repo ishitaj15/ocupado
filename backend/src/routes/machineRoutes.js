@@ -5,7 +5,8 @@ import {
   updateMachineStatus,
   startWash,
   endWash,
-  toggleMaintenance
+  toggleMaintenance,
+  deleteMachine
 } from '../controllers/machineController.js'
 import { verifyToken, verifyAdminToken } from '../middleware/auth.js'
 import { updateMachineStatusSync } from '../controllers/machineSyncController.js'
@@ -16,6 +17,7 @@ const router = express.Router()
 // Admin only
 router.post('/', verifyAdminToken, createMachine)
 router.patch('/:id/maintenance', verifyAdminToken, toggleMaintenance)
+router.delete('/:id', verifyAdminToken, deleteMachine)
 
 // Public
 router.get('/', getMachines)

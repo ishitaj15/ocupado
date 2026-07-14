@@ -82,7 +82,7 @@ export default function MyLaundry() {
   }
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-white">
       <Navbar />
 
       <div className="max-w-2xl mx-auto px-6 py-8">

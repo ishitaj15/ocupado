@@ -160,7 +160,7 @@ export default function Admin() {
       : 'text-red-500'
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-white">
       {/* Header */}
       <div className="bg-navy text-white px-8 py-5 flex items-center justify-between">
         <div>

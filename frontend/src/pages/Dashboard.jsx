@@ -96,7 +96,7 @@ export default function Dashboard() {
   const softShadow = 'shadow-[0_12px_35px_rgba(0,0,0,0.06)]'
 
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-white">
       <Navbar />
 
       <div className="max-w-7xl mx-auto px-6 py-6">

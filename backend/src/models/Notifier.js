@@ -1,24 +1,8 @@
-// Base class — defines the contract
+// Base class — defines the contract (abstraction)
+// Any notifier must implement send(); the base refuses to be used directly.
 class Notifier {
   send(message, recipient) {
     throw new Error('send() must be implemented by subclass')
-  }
-}
-
-// SMS notification via Twilio
-class SMSNotifier extends Notifier {
-  constructor(twilioClient, fromNumber) {
-    super()
-    this.twilioClient = twilioClient
-    this.fromNumber = fromNumber
-  }
-
-  async send(message, phone) {
-    return await this.twilioClient.messages.create({
-      body: message,
-      to: phone,
-      from: this.fromNumber
-    })
   }
 }
 
@@ -32,9 +16,9 @@ class SocketNotifier extends Notifier {
   send(message, userId) {
     this.io.to(`user_${userId}`).emit('notification', {
       message,
-      timestamp: new Date()
+      timestamp: new Date(),
     })
   }
 }
 
-export { Notifier, SMSNotifier, SocketNotifier }
+export { Notifier, SocketNotifier }

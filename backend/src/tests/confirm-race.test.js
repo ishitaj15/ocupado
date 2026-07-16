@@ -61,12 +61,21 @@ afterAll(async () => {
   await pool.end()
 })
 
-// Mirrors the SELECT COUNT -> check -> UPDATE sequence in confirmMachine.
-// The delay in the middle widens the window between read and write so the
-// interleaving is reproducible on demand instead of down to luck.
+// Mirrors the SELECT COUNT -> check -> UPDATE sequence in confirmMachine,
+// now wrapped in a transaction with a row lock.
+//
+// SELECT ... FOR UPDATE takes a lock on the student's row and holds it until
+// COMMIT. A second client running this same block blocks at its own FOR UPDATE
+// until the first one commits — then reads the *updated* count and correctly
+// backs off. The check and the write become one indivisible step.
 async function attemptConfirm(machineId) {
   const client = await pool.connect()
   try {
+    await client.query('BEGIN')
+
+    // Lock the student row. Everything below happens with that lock held.
+    await client.query(`SELECT id FROM students WHERE id = $1 FOR UPDATE`, [studentId])
+
     const held = await client.query(
       `SELECT COUNT(*) FROM machines
        WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED')`,
@@ -74,6 +83,7 @@ async function attemptConfirm(machineId) {
     )
 
     if (parseInt(held.rows[0].count) >= 2) {
+      await client.query('ROLLBACK')
       return { confirmed: false }
     }
 
@@ -83,7 +93,12 @@ async function attemptConfirm(machineId) {
       `UPDATE machines SET status = 'RESERVED', current_user_id = $1 WHERE id = $2`,
       [studentId, machineId]
     )
+
+    await client.query('COMMIT')
     return { confirmed: true }
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
   } finally {
     client.release()
   }

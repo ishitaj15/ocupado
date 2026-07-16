@@ -2,7 +2,6 @@ import express from 'express'
 import {
   createMachine,
   getMachines,
-  updateMachineStatus,
   startWash,
   endWash,
   toggleMaintenance,
@@ -21,7 +20,7 @@ router.delete('/:id', verifyAdminToken, deleteMachine)
 
 // Public
 router.get('/', getMachines)
-router.patch('/:id/status', updateMachineStatus)
+
 
 // Logged-in users only (identity comes from JWT via verifyToken)
 router.post('/:id/start-wash', verifyToken, startWash)

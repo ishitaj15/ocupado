@@ -62,48 +62,6 @@ export const getMachines = async (req, res) => {
   }
 }
 
-// Update machine status
-export const updateMachineStatus = async (req, res) => {
-  try {
-    const { id } = req.params
-    const { status } = req.body
-
-    if (!['FREE', 'ENGAGED', 'RESERVED', 'MAINTENANCE'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status' })
-    }
-
-    const result = await pool.query(
-      'UPDATE machines SET status = $1 WHERE id = $2 RETURNING *',
-      [status, id]
-    )
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Machine not found' })
-    }
-
-    if (status === 'FREE') {
-      await ocupadoQueue.add('notify-next', { machineId: id })
-    }
-
-    io.emit('machine-status-update', {
-      machineId: result.rows[0].id,
-      name: result.rows[0].name,
-      status: result.rows[0].status
-    })
-
-    const machine = new Machine(
-      result.rows[0].id,
-      result.rows[0].name,
-      result.rows[0].status,
-      result.rows[0].qr_url
-    )
-
-    res.status(200).json({ success: true, machine })
-  } catch (error) {
-    console.error('updateMachineStatus error:', error.message)
-    res.status(500).json({ error: 'Internal server error' })
-  }
-}
 
 // Start wash — student selects cycle and begins
 export const startWash = async (req, res) => {

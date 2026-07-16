@@ -62,41 +62,56 @@ export const getMachines = async (req, res) => {
   }
 }
 
-
 // Start wash — student selects cycle and begins
 export const startWash = async (req, res) => {
+  const { id } = req.params
+  const studentId = req.user.id
+  const { duration } = req.body
+
+  // Validate before taking a connection from the pool — no point holding one
+  // for a request that can't proceed.
+  if (!duration) {
+    return res.status(400).json({ error: 'duration required' })
+  }
+
+  if (![30, 45, 60].includes(Number(duration))) {
+    return res.status(400).json({ error: 'Duration must be 30, 45, or 60 minutes' })
+  }
+
+  const client = await pool.connect()
   try {
-    const { id } = req.params
-    const studentId = req.user.id
-    const { duration } = req.body
+    await client.query('BEGIN')
 
-    if (!duration) {
-      return res.status(400).json({ error: 'duration required' })
-    }
+    // Two locks, always taken in this order (student, then machine) so that
+    // concurrent requests can never deadlock by grabbing them in opposite order.
 
-    if (![30, 45, 60].includes(Number(duration))) {
-      return res.status(400).json({ error: 'Duration must be 30, 45, or 60 minutes' })
+    // Lock 1 — the student. Stops two of THIS student's requests from both
+    // reading the same machine count and both deciding there's room.
+    await client.query(`SELECT id FROM students WHERE id = $1 FOR UPDATE`, [studentId])
+
+    // Lock 2 — the machine. Stops two DIFFERENT students from both seeing this
+    // machine as FREE and both starting a wash on it, where the second UPDATE
+    // would silently overwrite the first student's wash.
+    const machine = await client.query(
+      'SELECT * FROM machines WHERE id = $1 FOR UPDATE',
+      [id]
+    )
+
+    if (machine.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Machine not found' })
     }
 
     // Limit: a student can use at most 2 machines at once
     // Count machines this student holds (ENGAGED + RESERVED), excluding the one being started
-    const activeCount = await pool.query(
+    const activeCount = await client.query(
       `SELECT COUNT(*) FROM machines 
        WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED') AND id != $2`,
       [studentId, id]
     )
     if (parseInt(activeCount.rows[0].count) >= 2) {
+      await client.query('ROLLBACK')
       return res.status(400).json({ error: 'You can only use 2 machines at a time' })
-    }
-
-    // Check machine exists
-    const machine = await pool.query(
-      'SELECT * FROM machines WHERE id = $1',
-      [id]
-    )
-
-    if (machine.rows.length === 0) {
-      return res.status(404).json({ error: 'Machine not found' })
     }
 
     const current = machine.rows[0]
@@ -106,13 +121,14 @@ export const startWash = async (req, res) => {
 
     // Allow starting only if the machine is FREE, or RESERVED for this student
     if (!isFree && !isMyReservation) {
+      await client.query('ROLLBACK')
       return res.status(400).json({ error: 'Machine is not available' })
     }
 
     const startedAt = new Date()
     const endsAt = new Date(startedAt.getTime() + duration * 60 * 1000)
 
-    const result = await pool.query(
+    const result = await client.query(
       `UPDATE machines 
        SET status = 'ENGAGED', 
            current_user_id = $1,
@@ -125,11 +141,15 @@ export const startWash = async (req, res) => {
     )
 
     // If this was a reserved machine, clear the student's waitlist entry (turn used)
-    await pool.query(
+    await client.query(
       `DELETE FROM waitlist WHERE machine_id = $1 AND student_id = $2`,
       [id, studentId]
     )
 
+    await client.query('COMMIT')
+
+    // Side effects only after the commit — never schedule an auto-free for a
+    // wash that might still roll back.
     await ocupadoQueue.add(
       'auto-free',
       { machineId: id },
@@ -152,8 +172,11 @@ export const startWash = async (req, res) => {
 
     res.status(200).json({ success: true, machine: result.rows[0] })
   } catch (error) {
+    await client.query('ROLLBACK')
     console.error('startWash error:', error.message)
     res.status(500).json({ error: 'Internal server error' })
+  } finally {
+    client.release()
   }
 }
 

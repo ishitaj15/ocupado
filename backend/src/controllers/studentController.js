@@ -17,7 +17,7 @@ export const getStudentStatus = async (req, res) => {
 
     // 2. Queue entry — student's spot in the GLOBAL queue (machine_id may be null while WAITING)
     const waitlist = await pool.query(
-      `SELECT w.id, w.machine_id, w.position, w.status, w.joined_at,
+      `SELECT w.id, w.machine_id, w.status, w.joined_at,
               w.notified_at, w.confirmed_at,
               m.name AS machine_name
        FROM waitlist w
@@ -31,7 +31,7 @@ export const getStudentStatus = async (req, res) => {
     // For WAITING entries, compute live position in the global queue
     const entries = []
     for (const entry of waitlist.rows) {
-      let livePosition = entry.position
+      let livePosition = null
       if (entry.status === 'WAITING') {
         const ahead = await pool.query(
           `SELECT COUNT(*) FROM waitlist 

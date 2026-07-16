@@ -30,18 +30,22 @@ export const joinWaitlist = async (req, res) => {
       return res.status(400).json({ error: 'You are already in the queue' })
     }
 
-    // Position = number of people currently waiting + 1
-    const count = await pool.query(
-      `SELECT COUNT(*) FROM waitlist WHERE status = 'WAITING'`
-    )
-    const position = parseInt(count.rows[0].count) + 1
-
-    // Add to the global queue (no machine_id yet — assigned when notified)
+    // Add to the global queue (no machine_id yet — assigned when notified).
+    // No position column: order is derived from joined_at, which can never
+    // go stale or collide the way a cached counter does.
     const result = await pool.query(
-      `INSERT INTO waitlist (id, student_id, position, status)
-       VALUES ($1, $2, $3, 'WAITING') RETURNING *`,
-      [uuidv4(), studentId, position]
+      `INSERT INTO waitlist (id, student_id, status)
+       VALUES ($1, $2, 'WAITING') RETURNING *`,
+      [uuidv4(), studentId]
     )
+
+    // Position for the response message, computed live
+    const ahead = await pool.query(
+      `SELECT COUNT(*) FROM waitlist
+       WHERE status = 'WAITING' AND joined_at < $1`,
+      [result.rows[0].joined_at]
+    )
+    const position = parseInt(ahead.rows[0].count) + 1
 
     res.status(201).json({
       success: true,

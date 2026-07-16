@@ -32,7 +32,7 @@ const worker = new Worker('ocupado', async (job) => {
        FROM waitlist w 
        JOIN students s ON w.student_id = s.id 
        WHERE w.status = 'WAITING'
-       ORDER BY w.position ASC`
+       ORDER BY w.joined_at ASC`
     )
 
     // Find first ELIGIBLE student: holds < 2 machines AND no pending offer.

@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS waitlist (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   machine_id UUID REFERENCES machines(id) ON DELETE CASCADE,
   student_id UUID REFERENCES students(id) ON DELETE CASCADE,
-  position INTEGER NOT NULL,
+  
   status VARCHAR(20) DEFAULT 'WAITING' CHECK (status IN ('WAITING', 'NOTIFIED', 'CONFIRMED', 'EXPIRED')),
   joined_at TIMESTAMP DEFAULT NOW(),
   notified_at TIMESTAMP,             -- when the machine was offered (start of 5-min confirm window)

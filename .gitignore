@@ -18,6 +18,9 @@ build/
 *.log
 npm-debug.log*
 
+# Temporary source dumps
+*-dump.txt
+
 # OS files
 .DS_Store
 Thumbs.db

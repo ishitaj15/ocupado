@@ -210,6 +210,23 @@ export const toggleMaintenance = async (req, res) => {
     const { id } = req.params
     const { isMaintenance } = req.body
 
+    // Fetch the machine first so we can check its current state
+    const machine = await pool.query('SELECT * FROM machines WHERE id = $1', [id])
+    if (machine.rows.length === 0) {
+      return res.status(404).json({ error: 'Machine not found' })
+    }
+
+    // Safety: don't take a machine out of service while someone is using or
+    // holding it. The UPDATE below overwrites status but leaves current_user_id,
+    // started_at and ends_at intact — so auto-free (which only matches
+    // status = 'ENGAGED') would silently skip it, stranding the machine in
+    // MAINTENANCE forever with a ghost wash attached.
+    if (isMaintenance && ['ENGAGED', 'RESERVED'].includes(machine.rows[0].status)) {
+      return res.status(400).json({
+        error: 'Cannot put a machine into maintenance while it is in use or reserved. Wait until it is free.',
+      })
+    }
+
     const result = await pool.query(
       `UPDATE machines 
        SET is_maintenance = $1,
@@ -218,10 +235,6 @@ export const toggleMaintenance = async (req, res) => {
        RETURNING *`,
       [isMaintenance, isMaintenance ? 'MAINTENANCE' : 'FREE', id]
     )
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Machine not found' })
-    }
 
     io.emit('machine-status-update', {
       machineId: id,

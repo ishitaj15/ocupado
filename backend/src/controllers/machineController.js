@@ -41,8 +41,14 @@ export const createMachine = async (req, res) => {
 // Get all machines
 export const getMachines = async (req, res) => {
   try {
+    // Sort by the number in the machine name ("Machine 2" before "Machine 10"),
+    // falling back to name then created_at for anything that isn't "<word> <number>".
+    // Plain ORDER BY name would sort them as text: 1, 10, 2, 3...
     const result = await pool.query(
-      'SELECT * FROM machines ORDER BY created_at ASC'
+      `SELECT * FROM machines
+       ORDER BY NULLIF(regexp_replace(name, '\\D', '', 'g'), '')::int ASC NULLS LAST,
+                name ASC,
+                created_at ASC`
     )
 
     const machines = result.rows.map(row => ({

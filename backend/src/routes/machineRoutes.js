@@ -9,7 +9,7 @@ import {
   deleteMachine
 } from '../controllers/machineController.js'
 import { verifyToken, verifyAdminToken } from '../middleware/auth.js'
-import { updateMachineStatusSync } from '../controllers/machineSyncController.js'
+
 import { confirmMachine } from '../controllers/waitlistController.js'
 
 const router = express.Router()
@@ -28,7 +28,6 @@ router.post('/:id/start-wash', verifyToken, startWash)
 router.post('/:id/end-wash', verifyToken, endWash)
 router.post('/:id/confirm', verifyToken, confirmMachine)
 
-// Load test only
-router.patch('/:id/status/sync', updateMachineStatusSync)
+
 
 export default router

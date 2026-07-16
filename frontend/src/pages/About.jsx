@@ -18,9 +18,9 @@ export default function About() {
 
   const highlights = [
     { icon: Activity, title: 'Real-time Updates', desc: 'Live machine status pushed instantly via WebSockets' },
-    { icon: Users, title: 'Global Fair Queue', desc: 'One position-based waitlist, served first-come-first-served' },
+    { icon: Users, title: 'Global Fair Queue', desc: 'One waitlist ordered by join time, served first-come-first-served' },
     { icon: ShieldCheck, title: 'Deadlock-free', desc: 'Eligible-user logic skips blocked people so the queue never stalls' },
-    { icon: TrendingUp, title: 'Async Job Queue', desc: 'BullMQ + Redis handle timers and notifications under load' },
+    { icon: TrendingUp, title: 'Async Job Queue', desc: 'BullMQ + Redis run every timer as a durable job that survives restarts' },
   ]
 
   const features = [

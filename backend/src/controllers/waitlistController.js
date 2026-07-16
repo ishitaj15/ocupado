@@ -60,17 +60,27 @@ export const joinWaitlist = async (req, res) => {
 
 // Confirm — student accepts the machine they were offered
 export const confirmMachine = async (req, res) => {
+  const client = await pool.connect()
   try {
     const { id: machineId } = req.params
     const studentId = req.user.id
 
+    await client.query('BEGIN')
+
+    // Lock this student's row for the duration of the transaction. Two confirms
+    // arriving at once would otherwise both read the same machine count, both
+    // see room, and both proceed — leaving the student holding 3 machines.
+    // The second one now blocks here until the first commits, then re-reads.
+    await client.query(`SELECT id FROM students WHERE id = $1 FOR UPDATE`, [studentId])
+
     // Find this student's NOTIFIED entry (they were offered a machine)
-    const result = await pool.query(
+    const result = await client.query(
       `SELECT * FROM waitlist 
        WHERE student_id = $1 AND status = 'NOTIFIED'`,
       [studentId]
     )
     if (result.rows.length === 0) {
+      await client.query('ROLLBACK')
       return res.status(404).json({ error: 'No pending confirmation found' })
     }
 
@@ -79,29 +89,34 @@ export const confirmMachine = async (req, res) => {
     const offeredMachineId = entry.machine_id || machineId
 
     // Limit: total held machines (ENGAGED + RESERVED) can't exceed 2
-    const heldCount = await pool.query(
+    const heldCount = await client.query(
       `SELECT COUNT(*) FROM machines 
        WHERE current_user_id = $1 AND status IN ('ENGAGED', 'RESERVED')`,
       [studentId]
     )
     if (parseInt(heldCount.rows[0].count) >= 2) {
+      await client.query('ROLLBACK')
       return res.status(400).json({
         error: 'You already hold 2 machines. Finish or release one before confirming another.'
       })
     }
 
     // Mark waitlist entry as CONFIRMED (record confirmed_at for countdown)
-    await pool.query(
+    await client.query(
       "UPDATE waitlist SET status = 'CONFIRMED', confirmed_at = NOW() WHERE id = $1",
       [entry.id]
     )
 
     // Reserve the offered machine specifically for this student
-    await pool.query(
+    await client.query(
       `UPDATE machines SET status = 'RESERVED', current_user_id = $1 WHERE id = $2`,
       [studentId, offeredMachineId]
     )
 
+    await client.query('COMMIT')
+
+    // Side effects go AFTER the commit — never emit a socket event or enqueue a
+    // job for a transaction that might still roll back.
     io.emit('machine-status-update', {
       machineId: offeredMachineId,
       status: 'RESERVED',
@@ -120,7 +135,10 @@ export const confirmMachine = async (req, res) => {
       message: 'Confirmed! The machine is reserved for you — start your wash within 3 minutes.'
     })
   } catch (error) {
+    await client.query('ROLLBACK')
     console.error('confirmMachine error:', error.message)
     res.status(500).json({ error: 'Internal server error' })
+  } finally {
+    client.release()
   }
 }

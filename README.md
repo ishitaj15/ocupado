@@ -1,6 +1,6 @@
 # 🧺 Ocupado — Real-Time Laundry Queue Management System
 
-> Real-time laundry queue management for hostels. Students join one fair, first-come-first-served line for all machines; an asynchronous job queue allocates machines sequentially, with timed confirmation windows and automatic fallback to the next person on non-response.
+> A real-time system that ends the daily scramble for hostel washing machines. Students join one fair queue and get allocated machines automatically, powered by an async BullMQ + Redis job queue that handles sequential allocation, timed confirmations, and fallbacks, with live updates over Socket.io.
 
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
@@ -31,7 +31,7 @@ Registration is **admin-only by design**, so use the demo student account below 
 
 ## 📌 The Problem
 
-Every hostel in India has the same one. Washing machines sit on the top floor, so students make repeated wasted trips just to check if a machine is free — and there's no queue, it's whoever shows up first. During peak hours (7–9 PM) it turns into chaos.
+Every hostel in India has the same one. Washing machines sit on the top floor, so students make repeated wasted trips just to check if a machine is free, and there's no queue, it's whoever shows up first. During peak hours it turns into chaos.
 
 **Ocupado** fixes this with a single fair queue for all machines, sequential machine allocation, and live status that updates the instant anything changes.
 
@@ -39,13 +39,13 @@ Every hostel in India has the same one. Washing machines sit on the top floor, s
 
 ## ✨ Key Features
 
-- **Fair global queue** — one first-come-first-served line for all machines, not a separate queue per machine
-- **Sequential allocation** — when a machine frees up, it's offered to the next eligible student automatically
-- **Timed confirmation windows** — an offer must be confirmed within a set window, then started within another; miss either and it cascades to the next person
-- **Real-time status** — machine state broadcasts live via Socket.io, no page refresh needed
-- **Auto-releasing timers** — pick 30/45/60 min; the machine frees itself when the cycle ends
-- **Role-based access** — separate student and admin capabilities, enforced on the backend
-- **Admin panel** — create machines, register students, toggle maintenance
+- **Fair global queue:** one first-come-first-served line for all machines, not a separate queue per machine
+- **Sequential allocation:** when a machine frees up, it's offered to the next eligible student automatically
+- **Timed confirmation windows:** an offer must be confirmed within a set window, then started within another; miss either and it cascades to the next person
+- **Real-time status:** machine state broadcasts live via Socket.io, no page refresh needed
+- **Auto-releasing timers:** pick 30/45/60 min and the machine frees itself when the cycle ends
+- **Role-based access:** separate student and admin capabilities, enforced on the backend
+- **Admin panel:** create machines, register students, toggle maintenance
 
 ---
 
@@ -60,15 +60,15 @@ Four independent services, each chosen for what that part of the app actually ne
 | **Database** | PostgreSQL | Neon |
 | **Queue store** | Redis (over TLS) | Upstash |
 
-**How the queue works:** a single global waitlist feeds every machine. When a machine frees up, a background job walks the queue, finds the first *eligible* student (skipping anyone already holding two machines or with a pending offer), reserves the machine, and updates their view in real time — with layered timeouts that automatically promote the next person if someone doesn't respond in time.
+**How the queue works:** a single global waitlist feeds every machine. When a machine frees up, a background job walks the queue, finds the first *eligible* student (skipping anyone already holding two machines or with a pending offer), reserves the machine, and updates their view in real time, with layered timeouts that automatically promote the next person if someone doesn't respond in time.
 
 ---
 
 ## ⚡ Technical Highlights
 
-- **Asynchronous job-queue engine.** Machine allocation runs on BullMQ + Redis: delayed jobs schedule timed confirmation windows, handle automatic timeout-and-retry, and cascade through the queue on non-response — keeping the allocation logic off the request path.
+- **Asynchronous job-queue engine.** Machine allocation runs on BullMQ + Redis: delayed jobs schedule timed confirmation windows, handle automatic timeout-and-retry, and cascade through the queue on non-response, keeping the allocation logic off the request path.
 - **Fixed a check-then-act race condition.** Concurrent reservation requests could bypass the per-user machine limit. Solved with PostgreSQL `SELECT FOR UPDATE` row-level locking inside transactions, so the limit holds even under simultaneous requests.
-- **98% latency reduction under load.** Moving matching into async workers dropped average API response time from **3.07 s → 62 ms** and raised throughput ~3.8× (k6, 50 concurrent users), at a 0% error rate.
+- **98% latency reduction under load.** Moving matching into async workers dropped average API response time from **3.07 s to 62 ms** and raised throughput ~3.8× (k6, 50 concurrent users), at a 0% error rate.
 - **Resilient jobs.** Failed jobs retry 3× with exponential backoff, then land in a Dead Letter Queue for inspection.
 - **Tested & automated.** Jest unit tests on the OOP domain classes, with CI/CD via GitHub Actions on every push.
 
@@ -76,11 +76,11 @@ Four independent services, each chosen for what that part of the app actually ne
 
 ## 🔐 Security
 
-- Passwords are **bcrypt-hashed** — never stored in plain text
+- Passwords are **bcrypt-hashed**, never stored in plain text
 - Identity comes from a **signed JWT**, taken from the verified token rather than the request body
-- **Role-based access control** (student/admin), with registration restricted to admins — no public self-signup
+- **Role-based access control** (student/admin), with registration restricted to admins and no public self-signup
 - Every protected route re-verifies the token and role **on the backend**, so tampering with the frontend achieves nothing
-- Secrets live only in each host's encrypted environment settings — never committed to git
+- Secrets live only in each host's encrypted environment settings and are never committed to git
 
 ---
 
@@ -121,7 +121,7 @@ psql -U postgres -d ocupado -f backend/src/db/schema.sql
 
 ---
 
-## 🔮 Roadmap
+## 🔮 What I'd Add Next
 
 - Automatic email / push notifications when a machine becomes available
 - Password-change flow for students
@@ -131,7 +131,7 @@ psql -U postgres -d ocupado -f backend/src/db/schema.sql
 
 ## 👩‍💻 Author
 
-**Ishita Jain** — Pre-final year B.Tech CSE (Cyber Security), LNCT&S Bhopal
+**Ishita Jain**, Pre-final year B.Tech CSE (Cyber Security), LNCT&S Bhopal
 
 [![GitHub](https://img.shields.io/badge/GitHub-100000?style=for-the-badge&logo=github&logoColor=white)](https://github.com/ishitaj15)
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/ishita-jain-179a68328)

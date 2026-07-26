@@ -1,6 +1,6 @@
-# 🧺 Ocupado — Smart Hostel Laundry Management System
+# 🧺 Ocupado — Real-Time Laundry Queue Management System
 
-> Real-time laundry machine tracking with a fair global queue and automatic notifications. Students start a wash, join one shared line, and get pinged the moment a machine is theirs — no more wasted trips upstairs. No hardware, just a QR sticker on each machine.
+> Real-time laundry queue management for hostels. Students join one fair, first-come-first-served line for all machines; an asynchronous job queue allocates machines sequentially, with timed confirmation windows and automatic fallback to the next person on non-response.
 
 ![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
 ![Express](https://img.shields.io/badge/Express.js-000000?style=for-the-badge&logo=express&logoColor=white)
@@ -17,7 +17,7 @@
 
 **Try it here → [ocupado.vercel.app](https://ocupado.vercel.app)**
 
-Log in with the demo student account to explore the app:
+Registration is **admin-only by design**, so use the demo student account below to log in and explore:
 
 | Email | Password |
 |-------|----------|
@@ -33,19 +33,19 @@ Log in with the demo student account to explore the app:
 
 Every hostel in India has the same one. Washing machines sit on the top floor, so students make repeated wasted trips just to check if a machine is free — and there's no queue, it's whoever shows up first. During peak hours (7–9 PM) it turns into chaos.
 
-**Ocupado** fixes this with real-time machine status, a single fair queue for all machines, and automatic "it's your turn" notifications — with zero hardware. Each machine just gets a printed QR-code sticker.
+**Ocupado** fixes this with a single fair queue for all machines, sequential machine allocation, and live status that updates the instant anything changes.
 
 ---
 
 ## ✨ Key Features
 
-- **Real-time status** — machines update live via Socket.io, no refresh needed
-- **Fair global queue** — one first-come-first-served line for all machines, not one queue per machine
-- **Two-phase timeout** — 5 min to confirm an offer + 3 min to start; auto-promotes the next person if you miss it
+- **Fair global queue** — one first-come-first-served line for all machines, not a separate queue per machine
+- **Sequential allocation** — when a machine frees up, it's offered to the next eligible student automatically
+- **Timed confirmation windows** — an offer must be confirmed within a set window, then started within another; miss either and it cascades to the next person
+- **Real-time status** — machine state broadcasts live via Socket.io, no page refresh needed
 - **Auto-releasing timers** — pick 30/45/60 min; the machine frees itself when the cycle ends
-- **QR-code access** — scan the sticker on a machine to open it directly
-- **Role-based auth** — bcrypt + JWT, with separate student and admin roles
-- **Admin panel** — create machines, register students, toggle maintenance, view QR codes
+- **Role-based access** — separate student and admin capabilities, enforced on the backend
+- **Admin panel** — create machines, register students, toggle maintenance
 
 ---
 
@@ -60,16 +60,17 @@ Four independent services, each chosen for what that part of the app actually ne
 | **Database** | PostgreSQL | Neon |
 | **Queue store** | Redis (over TLS) | Upstash |
 
-**How the queue works:** a single global waitlist feeds every machine. When a machine frees up, a background job walks the queue, finds the first *eligible* student (skipping anyone already holding two machines or with a pending offer), reserves the machine, and notifies them in real time — with layered timeouts that automatically promote the next person if someone doesn't respond in time.
+**How the queue works:** a single global waitlist feeds every machine. When a machine frees up, a background job walks the queue, finds the first *eligible* student (skipping anyone already holding two machines or with a pending offer), reserves the machine, and updates their view in real time — with layered timeouts that automatically promote the next person if someone doesn't respond in time.
 
 ---
 
 ## ⚡ Technical Highlights
 
-- **98% latency reduction under load.** Moving the machine-matching logic out of the request path and into async BullMQ workers dropped average API response time from **3.07 s → 62 ms** and raised throughput ~3.8× (k6, 50 concurrent users). *0% error rate in both versions.*
-- **Deadlock-proof by design.** The 2-machine limit is enforced at join, confirm, *and* worker level, so the queue can't wedge itself.
+- **Asynchronous job-queue engine.** Machine allocation runs on BullMQ + Redis: delayed jobs schedule timed confirmation windows, handle automatic timeout-and-retry, and cascade through the queue on non-response — keeping the allocation logic off the request path.
+- **Fixed a check-then-act race condition.** Concurrent reservation requests could bypass the per-user machine limit. Solved with PostgreSQL `SELECT FOR UPDATE` row-level locking inside transactions, so the limit holds even under simultaneous requests.
+- **98% latency reduction under load.** Moving matching into async workers dropped average API response time from **3.07 s → 62 ms** and raised throughput ~3.8× (k6, 50 concurrent users), at a 0% error rate.
 - **Resilient jobs.** Failed jobs retry 3× with exponential backoff, then land in a Dead Letter Queue for inspection.
-- **Tested & automated.** 15 Jest unit tests on the core OOP classes, with CI/CD via GitHub Actions on every push.
+- **Tested & automated.** Jest unit tests on the OOP domain classes, with CI/CD via GitHub Actions on every push.
 
 ---
 
@@ -77,7 +78,7 @@ Four independent services, each chosen for what that part of the app actually ne
 
 - Passwords are **bcrypt-hashed** — never stored in plain text
 - Identity comes from a **signed JWT**, taken from the verified token rather than the request body
-- **Admin-only registration** — there's no public self-signup; admins provision student accounts (the demo account above was created this way)
+- **Role-based access control** (student/admin), with registration restricted to admins — no public self-signup
 - Every protected route re-verifies the token and role **on the backend**, so tampering with the frontend achieves nothing
 - Secrets live only in each host's encrypted environment settings — never committed to git
 
@@ -122,7 +123,7 @@ psql -U postgres -d ocupado -f backend/src/db/schema.sql
 
 ## 🔮 Roadmap
 
-- Email notifications as a fallback to in-app alerts
+- Automatic email / push notifications when a machine becomes available
 - Password-change flow for students
 - Usage-analytics dashboard (peak hours, average wait time)
 
